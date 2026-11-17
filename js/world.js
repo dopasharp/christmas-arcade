@@ -8,7 +8,8 @@ export const CLAW_SCALE = 0.55;
 
 // 오락기 자리. face = 기계 앞면이 보는 방향(라디안, 0 = +z 쪽).
 export const MACHINES = [
-  { id: 'claw', name: '인형뽑기', emoji: '🧸', x: -5.6, z: -6.6, face: 0, playable: true, cost: 1 },
+  { id: 'claw', name: '인형뽑기', emoji: '🧸', x: -5.6, z: -6.6, face: 0, playable: true, cost: 1, claw: { set: 'round' } },
+  { id: 'claw2', name: '산타 인형뽑기', emoji: '🎅', x: -8.35, z: -6.6, face: 0, playable: true, cost: 1, claw: { set: 'doll', title: '산타 인형뽑기', color: 0x2fae6e, colorDark: 0x1d7a4a } },
   { id: 'ten', name: '10초 맞추기', emoji: '⏱️', x: -1.9, z: -6.9, face: 0, playable: true, cost: 1 },
   { id: 'basket', name: '농구', emoji: '🏀', x: 2.3, z: -6.5, face: 0, playable: false },
   { id: 'pinball', name: '핀볼', emoji: '🎯', x: 6.4, z: -6.6, face: 0, playable: false },
@@ -195,7 +196,7 @@ export function buildWorld(scene) {
   });
 
   // 리스
-  for (const x of [-8.2, 8.2]) {
+  for (const x of [-3.75, 8.2]) {
     const wreath = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.14, 10, 28), mat(0x1f6b35, { roughness: 0.9 }));
     add(wreath, x, 3.1, ROOM.z0 + 0.12, { cast: false });
     const bow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), mat(RED));
@@ -360,7 +361,7 @@ export function buildWorld(scene) {
   // ---------------------------------------------------------------- 오락기 (인형뽑기 빼고)
   const machineMeshes = {};
   for (const m of MACHINES) {
-    if (m.id === 'claw') continue;
+    if (m.claw) continue;
     const g = new THREE.Group();
     const parts = BUILDERS[m.id]({ mat, boxMesh, g, m });
     g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });

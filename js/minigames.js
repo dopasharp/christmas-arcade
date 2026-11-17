@@ -1,10 +1,12 @@
 // 인형뽑기 말고 지금 할 수 있는 미니게임 두 개. main.js 가 버튼(E / ACTION)을 action() 으로 넘겨줘요.
 //   ctx = { sfx, pay(): bool, reward(n, why), prize(id, why), banner(text, kind, ms), confetti(n), show(big, sub, color), sendLive(d) }
-import { WHEEL } from './world.js?v=2';
-import { itemInfo } from './plush.js?v=2';
+import { WHEEL } from './world.js?v=3';
+import { itemInfo } from './plush.js?v=3';
 
 const TARGET = 10;
 const SHOW_SECS = 3; // 처음 3초만 숫자가 보이고 그다음은 ??.??
+// ±0.05초 안에 멈추면 받는 왕큰 인형 (캐릭터가 등에 업고 다녀요)
+const GIANTS = ['bear.hat.big', 'bunny.scarf.big', 'snowman.hat.big', 'penguin.scarf.big', 'reindeer.bow.big', 'cat.hat.big', 'santa..big', 'polar..big'];
 
 export function tenGame(ctx, mesh) {
   let state = 'ready';
@@ -18,7 +20,7 @@ export function tenGame(ctx, mesh) {
     ctx.sendLive({ v: text, c: color });
   };
   const idle = () => {
-    ctx.show('10.00', '누구나 상품! 정확할수록 좋은 상품 ⭐', '#86EFC8');
+    ctx.show('10.00', '누구나 상품! ±0.05초면 🧸왕큰 인형', '#86EFC8');
     screen('10.00', '#86EFC8');
   };
   idle();
@@ -35,10 +37,11 @@ export function tenGame(ctx, mesh) {
         let n = 0;
         let msg = '';
         let item = 'candy';
-        if (d <= 0.03) { n = 10; item = 'star'; msg = 'PERFECT!! 🎯'; }
-        else if (d <= 0.1) { n = 5; item = 'reindeer.hat'; msg = '거의 완벽!'; }
-        else if (d <= 0.3) { n = 2; item = 'gift'; msg = '아깝다!'; }
-        else if (d <= 0.6) { n = 1; item = 'bell'; msg = '조금만 더!'; }
+        if (d <= 0.05) { n = 10; item = GIANTS[Math.floor(Math.random() * GIANTS.length)]; msg = 'PERFECT!! 🎯 왕큰 인형!'; }
+        else if (d <= 0.1) { n = 5; item = 'star'; msg = '거의 완벽!'; }
+        else if (d <= 0.2) { n = 3; item = 'reindeer.hat'; msg = '대단해요!'; }
+        else if (d <= 0.4) { n = 2; item = 'gift'; msg = '아깝다!'; }
+        else if (d <= 0.7) { n = 1; item = 'bell'; msg = '조금만 더!'; }
         else if (d <= 1.0) { item = 'cookie'; msg = t < TARGET ? '조금 빨라요' : '조금 늦어요'; }
         else msg = t < TARGET ? '너무 빨라요' : '너무 늦어요';
         const info = itemInfo(item);
@@ -54,7 +57,7 @@ export function tenGame(ctx, mesh) {
         if (n) ctx.reward(n);
         ctx.sfx.win();
         if (n >= 5) ctx.confetti(n * 8);
-        ctx.banner(`${info.emoji} ${info.name} GET!`, n >= 10 ? 'rare' : n ? 'win' : 'go', 1800);
+        ctx.banner(`${info.emoji} ${info.name} GET!`, n >= 10 ? 'rare' : n ? 'win' : 'go', n >= 10 ? 2600 : 1800);
         return;
       }
       if (!ctx.pay()) return;

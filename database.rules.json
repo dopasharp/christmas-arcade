@@ -47,7 +47,7 @@
         "machines": {
           ".read": "auth != null",
           "$mid": {
-            ".validate": "$mid.matches(/^[a-z]{2,12}$/)",
+            ".validate": "$mid.matches(/^[a-z0-9]{2,12}$/)",
             "player": {
               ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || data.child('beat').val() < now - 15000) && (!newData.exists() || newData.child('uid').val() === auth.uid)",
               ".validate": "newData.hasChildren(['uid', 'n', 'beat'])",
@@ -81,7 +81,7 @@
         "scores": {
           ".read": "auth != null",
           "$mid": {
-            ".validate": "$mid.matches(/^(claw|ten|roulette)$/)",
+            ".validate": "$mid.matches(/^(claw|claw2|ten|roulette)$/)",
             ".indexOn": [
               "s"
             ],

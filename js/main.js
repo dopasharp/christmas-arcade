@@ -1,13 +1,13 @@
 // 도파# 크리스마스 오락실: 장면 · 캐릭터 이동 · 멀티플레이 · 대기열 · 오락기 플레이를 묶는 곳.
 // 폰 하나로도(화면 조이스틱) PC로도(WASD, 폰 QR 조종기) 할 수 있어요.
 import * as THREE from 'three';
-import * as sfx from './sound.js?v=2';
-import { buildWorld, MACHINES, ROOM, SPAWN, CLAW_SCALE, rotatedBox, canvasTex } from './world.js?v=2';
-import { createClawMachine } from './claw.js?v=2';
-import { createAvatar, OUTFITS, roundRect } from './avatar.js?v=2';
-import { tenGame, rouletteGame, applyTenLive, applyRouletteLive } from './minigames.js?v=2';
-import { connect, mode as netMode, STALE_MS, makeCode } from './net.js?v=2';
-import { itemInfo, isItem } from './plush.js?v=2';
+import * as sfx from './sound.js?v=3';
+import { buildWorld, MACHINES, ROOM, SPAWN, CLAW_SCALE, rotatedBox, canvasTex } from './world.js?v=3';
+import { createClawMachine } from './claw.js?v=3';
+import { createAvatar, OUTFITS, roundRect } from './avatar.js?v=3';
+import { tenGame, rouletteGame, applyTenLive, applyRouletteLive } from './minigames.js?v=3';
+import { connect, mode as netMode, STALE_MS, makeCode } from './net.js?v=3';
+import { itemInfo, isItem } from './plush.js?v=3';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -58,6 +58,7 @@ resize();
 // claw: 한 번 앉아서 뽑은 인형 수 · ten: 10초와의 오차(작을수록 1등) · roulette: 한 번 앉아서 받은 티켓
 const SCORE = {
   claw: { asc: false, label: '한 번에 뽑은 인형', fmt: (e) => `🧸 ${e.s}개` },
+  claw2: { asc: false, label: '한 번에 뽑은 인형', fmt: (e) => `🎅 ${e.s}개` },
   ten: { asc: true, label: '10초에 가장 가깝게', fmt: (e) => `${Number(e.v).toFixed(2)}초` },
   roulette: { asc: false, label: '한 번에 받은 티켓', fmt: (e) => `🎟️ ${e.s}` },
 };
@@ -65,21 +66,26 @@ const boards = {}; // mid → 상위 5명
 
 // ------------------------------------------------------------------ 오락기 배치
 const MDEF = Object.fromEntries(MACHINES.map((m) => [m.id, m]));
-const claw = createClawMachine({
-  sfx,
-  hooks: {
-    banner, confetti,
-    pay: () => pay(),
-    onWin(kind, k, acc) {
-      prize(acc ? `${kind}.${acc}` : kind);
-      reward(3);
-      S.caught = (S.caught || 0) + 1;
-      submitScore('claw', S.caught, S.caught);
+// 인형뽑기 기계들 (기계마다 인형 세트·색이 달라요)
+const claws = {};
+const clawOf = (mid) => claws[mid] || null;
+for (const m of MACHINES.filter((x) => x.claw)) {
+  const claw = createClawMachine({
+    sfx,
+    ...m.claw,
+    hooks: {
+      banner, confetti,
+      pay: () => pay(),
+      onWin(kind, k, acc) {
+        prize(acc ? `${kind}.${acc}` : kind);
+        reward(3);
+        S.caught = (S.caught || 0) + 1;
+        submitScore(m.id, S.caught, S.caught);
+      },
     },
-  },
-});
-{
-  const m = MDEF.claw;
+  });
+  claws[m.id] = claw;
+  claw.spectating = false;
   claw.group.scale.setScalar(CLAW_SCALE);
   claw.group.position.set(m.x, 1.6 * CLAW_SCALE, m.z);
   claw.group.rotation.y = m.face;
@@ -89,14 +95,14 @@ const claw = createClawMachine({
   world.colliders.push(rotatedBox(m, { x0: f.x0 * CLAW_SCALE, x1: f.x1 * CLAW_SCALE, z0: f.z0 * CLAW_SCALE, z1: f.z1 * CLAW_SCALE }));
 }
 // 기계 앞 서는 자리까지의 거리
-const FRONT = { claw: 1.55, ten: 1.15, roulette: 1.2, basket: 1.9, pinball: 1.6, prize: 1.1 };
+const FRONT = { claw: 1.55, claw2: 1.55, ten: 1.15, roulette: 1.2, basket: 1.9, pinball: 1.6, prize: 1.1 };
 for (const m of MACHINES) {
   const fx = Math.sin(m.face);
   const fz = Math.cos(m.face);
   m.fx = fx;
   m.fz = fz;
   m.spot = { x: m.x + fx * FRONT[m.id], z: m.z + fz * FRONT[m.id] };
-  m.group = m.id === 'claw' ? claw.group : world.machineMeshes[m.id].group;
+  m.group = m.claw ? claws[m.id].group : world.machineMeshes[m.id].group;
 }
 // 줄 서는 자리: 기계 앞에서 바깥쪽으로 한 줄
 function queueSlot(m, i) {
@@ -105,7 +111,7 @@ function queueSlot(m, i) {
 }
 
 // 오락기 위 상태 표시판 (AVAILABLE / PLAYING / WAITING / COMING SOON)
-const LABEL_Y = { claw: 3.4, ten: 3.1, basket: 3.6, pinball: 2.6, roulette: 3.4, prize: 3.5 };
+const LABEL_Y = { claw: 3.4, claw2: 3.4, ten: 3.1, basket: 3.6, pinball: 2.6, roulette: 3.4, prize: 3.5 };
 const statusBoards = {};
 for (const m of MACHINES) {
   const tex = canvasTex(512, 200, () => {});
@@ -407,7 +413,8 @@ let busyAct = false;
 async function action() {
   S.idle = 0;
   if (S.mode === 'entry' || !me) return;
-  if (S.mode === 'claw') {
+  const claw = clawOf(S.mode);
+  if (claw) {
     if (claw.game.phase === 'idle') claw.insertCoin();
     else if (claw.game.phase === 'play') claw.dropClaw();
     renderPlayHud();
@@ -481,8 +488,8 @@ function startMachine(m) {
   $('playHud').hidden = false;
   $('playHud').dataset.machine = m.id;
   $('playTitle').textContent = `${m.emoji} ${m.name}`;
-  $('viewBtn').hidden = m.id !== 'claw';
-  if (m.id === 'claw') ctx.show('', '', '');
+  $('viewBtn').hidden = !m.claw;
+  if (m.claw) ctx.show('', '', '');
   document.body.classList.add('playing');
   renderRank();
   renderPlayHud();
@@ -495,11 +502,12 @@ async function exitMachine(force = false) {
     if (S.queue) leaveQueue('줄에서 나왔어요');
     return;
   }
-  if (!force && S.mode === 'claw' && claw.busy() && claw.game.phase !== 'play') { toast('집게가 돌아올 때까지 잠깐만요!'); return; }
+  const claw = clawOf(S.mode);
+  if (!force && claw && claw.busy() && claw.game.phase !== 'play') { toast('집게가 돌아올 때까지 잠깐만요!'); return; }
   if (!force && game?.busy?.()) { toast('끝날 때까지 잠깐만요!'); return; }
   const m = MDEF[S.mode];
-  if (S.mode === 'claw' && claw.game.phase === 'play') claw.dropClaw();
-  if (force && S.mode === 'claw') claw.park();
+  if (claw && claw.game.phase === 'play') claw.dropClaw();
+  if (force && claw) claw.park();
   game?.exit?.();
   game = null;
   S.mode = 'walk';
@@ -618,7 +626,8 @@ function renderTickets(delta = 0) {
 // ------------------------------------------------------------------ HUD
 function renderPlayHud() {
   const btnA = $('btnA');
-  if (S.mode === 'claw') {
+  const claw = clawOf(S.mode);
+  if (claw) {
     const ph = claw.game.phase;
     btnA.textContent = ph === 'idle' ? '🪙 코인' : ph === 'play' ? '뽑기!' : '…';
     btnA.disabled = !['idle', 'play'].includes(ph);
@@ -688,7 +697,7 @@ function toast(text) {
 }
 
 function toggleView() {
-  if (S.mode !== 'claw') return;
+  if (!clawOf(S.mode)) return;
   S.view = S.view === 'claw' ? 'machine' : 'claw';
   $('viewBtn').textContent = S.view === 'claw' ? '🎥 기계 전체' : '🎥 집게 시점';
 }
@@ -833,7 +842,7 @@ let padUiKey = '';
 function sendPadUi() {
   if (!padHost || !pad.on) return;
   const btnA = $('btnA');
-  const ui = { a: btnA.textContent, ad: btnA.disabled ? 1 : 0, mode: S.mode === 'walk' ? 'walk' : 'play', b: S.mode === 'walk' ? '👋' : S.mode === 'claw' ? '🎥' : '', t: save.tickets, title: S.mode === 'walk' ? (S.near ? `${S.near.emoji} ${S.near.name}` : '오락실') : $('playTitle').textContent };
+  const ui = { a: btnA.textContent, ad: btnA.disabled ? 1 : 0, mode: S.mode === 'walk' ? 'walk' : 'play', b: S.mode === 'walk' ? '👋' : clawOf(S.mode) ? '🎥' : '', t: save.tickets, title: S.mode === 'walk' ? (S.near ? `${S.near.emoji} ${S.near.name}` : '오락실') : $('playTitle').textContent };
   const k = JSON.stringify(ui);
   if (k === padUiKey) return;
   padUiKey = k;
@@ -851,7 +860,8 @@ function updateCamera(dt, now) {
     const a = now / 9000;
     tmpA.set(Math.sin(a) * 9, 6.5, 4 + Math.cos(a) * 7);
     tmpB.set(0, 1.4, 0);
-  } else if (S.mode === 'claw') {
+  } else if (clawOf(S.mode)) {
+    const claw = clawOf(S.mode);
     claw.cameraPose(S.view, tmpA, tmpB);
     claw.group.localToWorld(tmpA);
     claw.group.localToWorld(tmpB);
@@ -868,19 +878,18 @@ function updateCamera(dt, now) {
     tmpA.set(me.x, 0.6 + dist * 0.95, me.z + dist);
     tmpB.set(me.x, 0.7, me.z - 0.6);
   }
-  const f = !camInit ? 1 : Math.min(1, dt * (S.mode === 'claw' && S.view === 'claw' ? 12 : 5));
+  const f = !camInit ? 1 : Math.min(1, dt * (clawOf(S.mode) && S.view === 'claw' ? 12 : 5));
   camPos.lerp(tmpA, f);
   camLook.lerp(tmpB, f);
   camInit = true;
   camera.position.copy(camPos);
   camera.lookAt(camLook);
-  const fov = S.mode === 'claw' && S.view === 'claw' ? 70 : 45;
+  const fov = clawOf(S.mode) && S.view === 'claw' ? 70 : 45;
   if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 
 // ------------------------------------------------------------------ 루프
 let last = performance.now();
-let clawSpectating = false;
 let hudT = 0;
 function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
@@ -918,21 +927,23 @@ function loop(now) {
   }
 
   // 인형뽑기: 내가 하면 물리, 남이 하면 구경
-  const occ = net ? occupant('claw') : null;
-  if (S.mode === 'claw') {
-    const { x, z } = moveInput();
-    claw.setInput(x, z);
-    claw.update(dt);
-    liveT += dt;
-    if (liveT > 0.12) { liveT = 0; net.sendLive('claw', claw.live()); }
-  } else if (occ && occ.uid !== net.uid) {
-    claw.applyLive(machinesState.claw?.live, dt);
-    clawSpectating = true;
-  } else {
-    if (clawSpectating) { claw.park(); clawSpectating = false; }
-    if (claw.busy()) { claw.setInput(0, 0); claw.update(dt); }
+  for (const [mid, claw] of Object.entries(claws)) {
+    const occ = net ? occupant(mid) : null;
+    if (S.mode === mid) {
+      const { x, z } = moveInput();
+      claw.setInput(x, z);
+      claw.update(dt);
+      liveT += dt;
+      if (liveT > 0.12) { liveT = 0; net.sendLive(mid, claw.live()); }
+    } else if (occ && occ.uid !== net.uid) {
+      claw.applyLive(machinesState[mid]?.live, dt);
+      claw.spectating = true;
+    } else {
+      if (claw.spectating) { claw.park(); claw.spectating = false; }
+      if (claw.busy()) { claw.setInput(0, 0); claw.update(dt); }
+    }
+    claw.draw(dt, now);
   }
-  claw.draw(dt, now);
 
   // 미니게임
   if (game) game.update(dt);
@@ -959,7 +970,7 @@ function loop(now) {
       // 줄 선 사람이 있는데 한참 아무것도 안 하면 자리 양보
       S.idle += dt;
       const waiting = queueOf(S.mode).length > 0;
-      const idleNow = S.mode === 'claw' ? claw.game.phase === 'idle' : !game?.busy?.();
+      const idleNow = clawOf(S.mode) ? clawOf(S.mode).game.phase === 'idle' : !game?.busy?.();
       if (idleNow && ((waiting && S.idle > 20) || S.idle > 90)) { toast('한동안 조작이 없어서 자리를 비켜 줬어요'); exitMachine(); }
     }
   }
@@ -997,5 +1008,5 @@ addEventListener('pagehide', () => {
   net.leave();
 });
 
-window.__arcade = { S, claw, others, save, prize, get me() { return me; }, get net() { return net; }, get machines() { return machinesState; }, action, exitMachine, scene, camera };
+window.__arcade = { S, claw: claws.claw, claws, others, save, prize, get me() { return me; }, get net() { return net; }, get machines() { return machinesState; }, action, exitMachine, scene, camera };
 window.__arcadeReady = true;

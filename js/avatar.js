@@ -1,7 +1,7 @@
 // 캐릭터: 산타 모자 쓴 동글동글 꼬마. 지오메트리는 모두 공유하고 색 재질만 캐시해서 여러 명이어도 가벼워요.
 import * as THREE from 'three';
-import { canvasTex } from './world.js?v=2';
-import { makeTinyItem, isItem } from './plush.js?v=2';
+import { canvasTex } from './world.js?v=3';
+import { makeTinyItem, isItem, isBig } from './plush.js?v=3';
 
 export const OUTFITS = [
   { key: 'red', label: '산타', body: 0xe23b4a, hat: 0xe23b4a, scarf: 0xffffff },
@@ -109,11 +109,26 @@ export function createAvatar({ nickname = '', outfit = 'red', me = false }) {
     { y: 0.86, r: 0.27, angles: [Math.PI - 0.32, Math.PI + 0.32, Math.PI - 0.95, Math.PI + 0.95, Math.PI] },
   ];
   const SLOTS = RINGS.flatMap((ring) => ring.angles.map((a) => ({ a, y: ring.y, r: ring.r })));
+  // 왕큰 인형은 등에 업고 다님 (가장 최근 것 하나)
+  let backpack = null;
   function setCarry(list) {
-    const items = (list || []).filter(isItem).slice(-SLOTS.length);
-    const key = items.join(',');
+    const all = (list || []).filter(isItem);
+    const big = [...all].reverse().find(isBig) || null;
+    const items = all.filter((id) => !isBig(id)).slice(-SLOTS.length);
+    const key = `${big}|${items.join(',')}`;
     if (key === carryKey) return;
     carryKey = key;
+    if (backpack) { rig.remove(backpack); backpack = null; }
+    if (big) {
+      backpack = new THREE.Group();
+      const doll = makeTinyItem(big, 0.3);
+      doll.rotation.y = Math.PI; // 등 뒤에서 바깥을 봄
+      doll.position.set(0, 0, 0);
+      backpack.add(doll);
+      backpack.position.set(0, 0.72, -0.42);
+      backpack.rotation.x = -0.12;
+      rig.add(backpack);
+    }
     for (const h of hangs) carry.remove(h.pivot);
     hangs = items.map((id, i) => {
       const slot = SLOTS[i];
@@ -158,6 +173,7 @@ export function createAvatar({ nickname = '', outfit = 'red', me = false }) {
       arms[0].rotation.x = -Math.sin(phase) * 0.7 * walk;
       arms[1].rotation.x = Math.sin(phase) * 0.7 * walk;
       head.rotation.z = Math.sin(phase * 0.5) * 0.05;
+      if (backpack) backpack.rotation.z = Math.sin(phase) * 0.06 * walk;
       for (const h of hangs) {
         h.pivot.rotation.x = -0.25 * walk + Math.sin(phase + h.ph) * 0.35 * walk + Math.sin(phase * 0.3 + h.ph) * 0.06;
         h.pivot.rotation.z = Math.sin(phase * 0.5 + h.ph) * 0.25 * walk;

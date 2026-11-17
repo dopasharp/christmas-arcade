@@ -8,7 +8,7 @@
 //   machines/{id}/queue/{uid}{ n, at }          ← 줄 선 사람 (at 순서)
 //   machines/{id}/live       하는 사람이 보내는 화면 상태 (구경용)
 //   pads/{code}              PC ↔ 폰 조종기 (QR)
-import { firebaseConfig } from './firebase-config.js?v=2';
+import { firebaseConfig } from './firebase-config.js?v=3';
 
 export const ROOM = 'xmas';
 const ROOT = `arcade/${ROOM}`;

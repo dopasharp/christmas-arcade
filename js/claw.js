@@ -5,7 +5,7 @@
 //   m.cameraPose('claw' | 'machine', cam, look)  → 로컬 좌표 (group.localToWorld 로 변환해서 쓰기)
 //   m.live() / m.applyLive(data)                 → 다른 사람이 하는 걸 구경할 때 집게 위치만 맞춤
 import * as THREE from 'three';
-import { KINDS, pickKind, pickAcc, makePlush } from './plush.js?v=2';
+import { PRIZE_SETS } from './plush.js?v=3';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -22,7 +22,12 @@ const PLAY_SECS = 30;
 const PRIZE_COUNT = 21;
 const G = 9.8;
 
-export function createClawMachine({ sfx, hooks = {} }) {
+export function createClawMachine({ sfx, hooks = {}, set = 'round', title = '인형뽑기', color = 0xff6c91, colorDark = 0xc94470 }) {
+const SET = PRIZE_SETS[set];
+const KINDS = SET.kinds;
+const pickKind = SET.pick;
+const pickAcc = SET.acc;
+const makePlush = SET.make;
 const group = new THREE.Group();
 const banner = (...a) => hooks.banner?.(...a);
 const confetti = (n) => hooks.confetti?.(n);
@@ -86,9 +91,15 @@ function signTexture() {
     g.lineJoin = 'round';
     g.lineWidth = 18;
     g.strokeStyle = '#FF6C91';
-    g.strokeText('인형뽑기', w / 2, h / 2 + 8);
+    let size = 150;
+    while (size > 60) {
+      g.font = `${size}px "Black Han Sans", "Pretendard Variable", sans-serif`;
+      if (g.measureText(title).width <= w - 200) break;
+      size -= 6;
+    }
+    g.strokeText(title, w / 2, h / 2 + 8);
     g.fillStyle = '#D9FF44';
-    g.fillText('인형뽑기', w / 2, h / 2 + 8);
+    g.fillText(title, w / 2, h / 2 + 8);
     g.font = '700 34px "Pretendard Variable", sans-serif';
     g.fillStyle = '#86EFC8';
     g.fillText('D#', 70, h / 2);
@@ -97,11 +108,11 @@ function signTexture() {
 }
 
 // ------------------------------------------------------------------ 기계 본체
-const PINK = 0xff6c91;
+const PINK = color;
 const LIME = 0xd9ff44;
 const M = {
   pink: new THREE.MeshStandardMaterial({ color: PINK, roughness: 0.45, metalness: 0.05 }),
-  pinkDark: new THREE.MeshStandardMaterial({ color: 0xc94470, roughness: 0.5 }),
+  pinkDark: new THREE.MeshStandardMaterial({ color: colorDark, roughness: 0.5 }),
   lime: new THREE.MeshStandardMaterial({ color: LIME, emissive: LIME, emissiveIntensity: 0.6, roughness: 0.4 }),
   dark: new THREE.MeshStandardMaterial({ color: 0x15191a, roughness: 0.6 }),
   chrome: new THREE.MeshStandardMaterial({ color: 0xdfe4ea, roughness: 0.18, metalness: 0.95 }),
@@ -290,7 +301,7 @@ group.add(ring);
 let prizes = [];
 let nextId = 1;
 function addPrize(kind, x, y, z) {
-  const r = kind === 'dopa' ? 0.27 : rand(0.27, 0.32);
+  const r = kind === SET.rare ? 0.27 : rand(0.27, 0.32);
   const acc = pickAcc(kind);
   const inner = makePlush(kind, r, acc);
   inner.rotation.z = rand(-0.16, 0.16); // 갸웃
@@ -313,10 +324,10 @@ function randomSpot() {
 function fillPrizes(count, from = 0.6) {
   const free = prizes.filter((p) => p.state === 'free').length;
   const add = [];
-  const hasRare = prizes.some((p) => p.kind === 'dopa' && p.state !== 'gone');
+  const hasRare = prizes.some((p) => p.kind === SET.rare && p.state !== 'gone');
   for (let i = free; i < count; i++) {
     const [x, z] = randomSpot();
-    const kind = !hasRare && !add.includes('dopa') && Math.random() < 0.6 ? 'dopa' : pickKind();
+    const kind = !hasRare && !add.includes(SET.rare) && Math.random() < 0.6 ? SET.rare : pickKind();
     add.push(kind);
     addPrize(kind, x, from + (i - free) * 0.35, z);
   }

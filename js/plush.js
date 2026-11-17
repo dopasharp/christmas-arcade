@@ -31,6 +31,23 @@ export function pickAcc(kind) {
   return ACCS[Math.floor(Math.random() * ACCS.length)];
 }
 
+// 두 번째 기계: 뜨개 인형(아미구루미) 스타일 크리스마스 인형. 작은 구슬 눈, 머리·몸이 나뉜 인형 모양
+export const DOLLS = {
+  santa: { name: '산타 인형', emoji: '🎅', w: 6 },
+  elf: { name: '엘프 인형', emoji: '🧝', w: 6 },
+  polar: { name: '북극곰 인형', emoji: '🐻‍❄️', w: 6 },
+  ginger: { name: '진저맨 인형', emoji: '🍪', w: 5 },
+  nutcracker: { name: '호두까기 병정', emoji: '💂', w: 5 },
+  angel: { name: '레어 천사 인형', emoji: '👼', w: 0, rare: true },
+};
+const DOLL_LIST = Object.keys(DOLLS).filter((k) => DOLLS[k].w > 0);
+export function pickDoll() {
+  const total = DOLL_LIST.reduce((s, k) => s + DOLLS[k].w, 0);
+  let r = Math.random() * total;
+  for (const k of DOLL_LIST) if ((r -= DOLLS[k].w) < 0) return k;
+  return 'santa';
+}
+
 // 장식 상품 (미니게임 경품)
 export const CHARMS = {
   candy: { name: '사탕지팡이', emoji: '🍭' },
@@ -42,10 +59,14 @@ export const CHARMS = {
   star: { name: '황금 별', emoji: '⭐', rare: true },
 };
 
+// 'bear.hat.big' 처럼 끝이 .big 이면 왕큰 인형
+export const isBig = (id) => String(id).split('.')[2] === 'big';
 export function itemInfo(id) {
   const [kind] = String(id).split('.');
-  const k = KINDS[kind] || CHARMS[kind];
-  return k ? { name: k.name, emoji: k.emoji, rare: !!k.rare, plush: !!KINDS[kind] } : null;
+  const k = KINDS[kind] || DOLLS[kind] || CHARMS[kind];
+  if (!k) return null;
+  const big = isBig(id);
+  return { name: big ? `왕큰 ${k.name.replace('레어 ', '')}` : k.name, emoji: k.emoji, rare: !!k.rare || big, plush: !!(KINDS[kind] || DOLLS[kind]), big };
 }
 export const isItem = (id) => !!itemInfo(id);
 
@@ -351,8 +372,139 @@ export function makeCharm(id, r) {
 
 export function makeItem(id, r) {
   const [kind, acc] = String(id).split('.');
-  return KINDS[kind] ? makePlush(kind, r, acc || '') : makeCharm(kind, r * 0.9);
+  if (KINDS[kind]) return makePlush(kind, r, acc || '');
+  if (DOLLS[kind]) return makeDoll(kind, r);
+  return makeCharm(kind, r * 0.9);
 }
+
+// ------------------------------------------------------------------ 뜨개 인형
+const knitTex = (() => {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const x = c.getContext('2d');
+  x.fillStyle = '#ffffff';
+  x.fillRect(0, 0, 64, 64);
+  x.strokeStyle = '#d4d4d4';
+  x.lineWidth = 3;
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const cx = col * 8 + 4;
+      const cy = row * 8;
+      x.beginPath();
+      x.moveTo(cx - 3.5, cy + 1);
+      x.lineTo(cx, cy + 7);
+      x.lineTo(cx + 3.5, cy + 1);
+      x.stroke();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(3, 3);
+  return t;
+})();
+const knitCache = new Map();
+function knit(color) {
+  if (!knitCache.has(color)) knitCache.set(color, new THREE.MeshStandardMaterial({ color, map: knitTex, roughness: 1 }));
+  return knitCache.get(color);
+}
+const bead = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.15 });
+const haloMat = new THREE.MeshStandardMaterial({ color: 0xffd36b, emissive: 0xffc030, emissiveIntensity: 0.9, roughness: 0.3 });
+const SMILE = new THREE.TorusGeometry(1, 0.25, 6, 12, Math.PI);
+const BOX = new THREE.BoxGeometry(1, 1, 1);
+
+export function makeDoll(kind, r) {
+  const g = new THREE.Group();
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const part = (geo, mat, pos, scale, rot) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.copy(pos);
+    if (typeof scale === 'number') m.scale.setScalar(scale);
+    else m.scale.copy(scale);
+    if (rot) m.rotation.set(...rot);
+    m.castShadow = (typeof scale === 'number' ? scale : Math.max(scale.x, scale.y, scale.z)) >= r * 0.2;
+    g.add(m);
+    return m;
+  };
+  const skin = knit(0xffe0c7);
+  const body = ({
+    santa: knit(0xd8283a), elf: knit(0x2f9e55), polar: knit(0xd8283a), ginger: knit(0xb8743a), nutcracker: knit(0xc8283a), angel: knit(0xfff6ea),
+  })[kind] || knit(0xd8283a);
+  const head = kind === 'polar' ? knit(0xf6f6f2) : kind === 'ginger' ? knit(0xb8743a) : skin;
+  const hand = kind === 'santa' ? knit(0xffffff) : head;
+
+  // 머리 + 몸 + 팔다리
+  part(SPH, head, V(0, r * 0.3, 0), V(r * 0.6, r * 0.56, r * 0.56));
+  part(SPH, body, V(0, -r * 0.42, 0), V(r * 0.48, r * 0.5, r * 0.42));
+  for (const s of [-1, 1]) {
+    part(SPH_S, body, V(s * r * 0.48, -r * 0.34, r * 0.04), V(r * 0.14, r * 0.3, r * 0.14), [0, 0, s * 0.55]);
+    part(SPH_S, hand, V(s * r * 0.63, -r * 0.58, r * 0.08), r * 0.12);
+    part(SPH_S, knit(kind === 'ginger' ? 0xb8743a : 0x2b1d3d), V(s * r * 0.2, -r * 0.9, r * 0.1), V(r * 0.16, r * 0.11, r * 0.2));
+  }
+  // 얼굴: 작은 구슬 눈 + 볼
+  const smile = (y = 0.16, mat = bead) => part(SMILE, mat, V(0, r * y, r * 0.55), r * 0.07, [0, 0, Math.PI]);
+  for (const s of [-1, 1]) {
+    part(SPH_S, bead, V(s * r * 0.2, r * 0.32, r * 0.52), r * 0.065);
+    part(SPH_S, white, V(s * r * 0.2 - r * 0.02, r * 0.345, r * 0.575), r * 0.02);
+    part(SPH_S, cheekMat, V(s * r * 0.34, r * 0.2, r * 0.46), V(r * 0.09, r * 0.05, r * 0.03));
+  }
+
+  if (kind === 'santa') {
+    part(SPH_S, whiteFluff, V(0, r * 0.08, r * 0.3), V(r * 0.42, r * 0.3, r * 0.3)); // 수염
+    for (const s of [-1, 1]) part(SPH_S, whiteFluff, V(s * r * 0.1, r * 0.2, r * 0.54), V(r * 0.11, r * 0.05, r * 0.05), [0, 0, s * 0.3]);
+    part(SPH_S, skin, V(0, r * 0.25, r * 0.58), r * 0.07);
+    part(CONE, redFelt, V(r * 0.08, r * 0.85, -r * 0.04), V(r * 0.46, r * 0.4, r * 0.46), [0, 0, -0.35]);
+    part(TORUS, whiteFluff, V(0, r * 0.66, 0), V(r * 0.52, r * 0.52, r * 0.4), [Math.PI / 2, 0, 0]);
+    part(SPH_S, whiteFluff, V(r * 0.36, r * 1.1, -r * 0.04), r * 0.1);
+    part(TORUS, bead, V(0, -r * 0.48, 0), V(r * 0.44, r * 0.44, r * 0.22), [Math.PI / 2, 0, 0]);
+    part(BOX, gold, V(0, -r * 0.48, r * 0.43), V(r * 0.16, r * 0.12, r * 0.04));
+  } else if (kind === 'elf') {
+    smile();
+    part(CONE, knit(0x2f9e55), V(-r * 0.12, r * 1.0, -r * 0.04), V(r * 0.42, r * 0.65, r * 0.42), [0, 0, 0.45]);
+    part(TORUS, redFelt, V(0, r * 0.66, 0), V(r * 0.5, r * 0.5, r * 0.32), [Math.PI / 2, 0, 0]);
+    part(SPH_S, redFelt, V(-r * 0.62, r * 1.4, -r * 0.04), r * 0.09);
+    for (const s of [-1, 1]) part(CONE, skin, V(s * r * 0.62, r * 0.36, 0), V(r * 0.09, r * 0.18, r * 0.07), [0, 0, -s * 1.25]);
+    for (const s of [-1, 1]) part(SPH_S, gold, V(s * r * 0.12, -r * 0.2, r * 0.38), r * 0.05);
+  } else if (kind === 'polar') {
+    for (const s of [-1, 1]) {
+      part(SPH_S, head, V(s * r * 0.4, r * 0.76, 0), r * 0.16);
+      part(SPH_S, pinkMat, V(s * r * 0.4, r * 0.76, r * 0.08), V(r * 0.08, r * 0.08, r * 0.04));
+    }
+    part(SPH_S, knit(0xffffff), V(0, r * 0.16, r * 0.42), V(r * 0.22, r * 0.15, r * 0.15));
+    part(SPH_S, bead, V(0, r * 0.22, r * 0.57), V(r * 0.07, r * 0.05, r * 0.04));
+    part(TORUS, greenFelt, V(0, -r * 0.04, 0), V(r * 0.42, r * 0.42, r * 0.3), [Math.PI / 2, 0, 0]);
+    part(SPH_S, greenFelt, V(r * 0.22, -r * 0.24, r * 0.36), V(r * 0.08, r * 0.18, r * 0.05), [0.2, 0, 0.3]);
+  } else if (kind === 'ginger') {
+    smile(0.16, icing);
+    for (const y of [-0.28, -0.5]) part(SPH_S, redFelt, V(0, r * y, r * 0.41), r * 0.07);
+    for (const s of [-1, 1]) part(SMILE, icing, V(s * r * 0.63, -r * 0.5, r * 0.12), r * 0.08, [0, 0, s * 0.6]);
+    part(TORUS, icing, V(0, -r * 0.78, 0), V(r * 0.3, r * 0.3, r * 0.15), [Math.PI / 2, 0, 0]);
+  } else if (kind === 'nutcracker') {
+    for (const s of [-1, 1]) part(SPH_S, whiteFluff, V(s * r * 0.1, r * 0.16, r * 0.54), V(r * 0.11, r * 0.05, r * 0.05), [0, 0, -s * 0.35]);
+    part(SPH_S, knit(0xffb0a0), V(0, r * 0.24, r * 0.58), r * 0.065);
+    part(CYL, knit(0x1a1a24), V(0, r * 0.88, 0), V(r * 0.44, r * 0.55, r * 0.44));
+    part(CYL, gold, V(0, r * 0.66, 0), V(r * 0.46, r * 0.08, r * 0.46));
+    part(SPH_S, redFelt, V(0, r * 1.2, r * 0.1), V(r * 0.1, r * 0.18, r * 0.1));
+    for (const y of [-0.22, -0.42, -0.62]) for (const s of [-1, 1]) part(SPH_S, gold, V(s * r * 0.12, r * y, r * 0.4), r * 0.04);
+    part(TORUS, bead, V(0, -r * 0.64, 0), V(r * 0.4, r * 0.4, r * 0.2), [Math.PI / 2, 0, 0]);
+  } else if (kind === 'angel') {
+    smile();
+    part(SPH, knit(0xffd36b), V(0, r * 0.38, -r * 0.1), V(r * 0.64, r * 0.6, r * 0.55)); // 머리카락
+    part(TORUS, haloMat, V(0, r * 1.0, 0), V(r * 0.3, r * 0.3, r * 0.2), [Math.PI / 2, 0, 0]);
+    for (const s of [-1, 1]) part(SPH_S, whiteFluff, V(s * r * 0.34, -r * 0.18, -r * 0.4), V(r * 0.3, r * 0.42, r * 0.07), [0, s * 0.5, -s * 0.5]);
+    part(CONE, knit(0xfff6ea), V(0, -r * 0.55, 0), V(r * 0.56, r * 0.4, r * 0.5));
+    part(SPH_S, gold, V(0, -r * 0.1, r * 0.42), r * 0.07);
+  }
+  return g;
+}
+
+// 인형뽑기 기계마다 다른 인형 세트
+export const PRIZE_SETS = {
+  round: { kinds: KINDS, pick: pickKind, rare: 'dopa', acc: pickAcc, make: makePlush },
+  doll: { kinds: DOLLS, pick: pickDoll, rare: 'angel', acc: () => '', make: (kind, r) => makeDoll(kind, r) },
+};
+
 
 // 캐릭터에 달고 다니는 작은 상품: 재질별로 합쳐서 그리기 횟수를 줄이고, 같은 상품은 지오메트리를 공유
 const merged = new Map();
