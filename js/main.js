@@ -205,7 +205,7 @@ addEventListener('keydown', (e) => {
   if (k) { keys.add(k); e.preventDefault(); return; }
   if (e.repeat) return;
   const key = e.key.toLowerCase();
-  if (key === 'e' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); action(); }
+  if (key === 'e' || ((e.key === ' ' || e.key === 'Enter') && S.mode !== 'walk')) { e.preventDefault(); action(); }
   else if (key === 'q') wave();
   else if (e.key === '+' || e.key === '=') zoomBy(1 / 1.2);
   else if (e.key === '-' || e.key === '_') zoomBy(1.2);
@@ -271,6 +271,7 @@ function moveInput() {
   el.addEventListener('pointercancel', (e) => { if (e.pointerId === id) release(); });
 }
 $('btnA').addEventListener('pointerdown', (e) => { e.preventDefault(); sfx.unlock(); action(); });
+$('prompt').addEventListener('click', () => { sfx.unlock(); action(); });
 $('btnB').addEventListener('pointerdown', (e) => { e.preventDefault(); wave(); });
 $('exitBtn').addEventListener('click', () => exitMachine());
 $('viewBtn').addEventListener('click', () => toggleView());
@@ -605,7 +606,6 @@ async function action() {
   if (game && S.mode !== 'walk') { game.action(); renderPlayHud(); return; }
   const m = nearestMachine() || (S.turn ? MDEF[S.turn.mid] : null);
   if (!m || !m.playable || busyAct) {
-    if (!m) wave();
     return;
   }
   if (m.instant) { exchangeCoins(m); return; }
@@ -676,6 +676,7 @@ function startMachine(m) {
   else if (m.id === 'roulette') game = rouletteGame(ctx, world.machineMeshes.roulette);
   else game = null;
   $('playHud').hidden = false;
+  $('btnA').hidden = false;
   $('playHud').dataset.machine = m.id;
   $('playTitle').textContent = `${m.emoji} ${m.name}`;
   $('viewBtn').hidden = !m.claw;
@@ -870,6 +871,7 @@ function renderWalkHud() {
     el.hidden = false;
     el.textContent = TOUCH ? p.text.replace(/^E : /, '') : p.text;
     el.classList.toggle('act', p.act);
+    el.disabled = !p.act;
     // 내 캐릭터 머리 위에
     const v = new THREE.Vector3(me.x, 2.25, me.z).project(camera);
     el.style.left = `${(v.x * 0.5 + 0.5) * innerWidth}px`;
@@ -877,7 +879,8 @@ function renderWalkHud() {
   } else el.hidden = true;
   const btnA = $('btnA');
   btnA.disabled = false;
-  btnA.textContent = p?.act ? (m?.instant ? '🪙 받기' : S.queue === m?.id && !S.turn ? '…' : /줄/.test(p.text) ? '줄서기' : 'PLAY') : '👋';
+  btnA.hidden = !p?.act; // 기계 앞에서만 PLAY 버튼이 나와요
+  btnA.textContent = p?.act ? (m?.instant ? '🪙 받기' : /줄/.test(p.text) ? '줄서기' : 'PLAY') : '';
   $('onlineCount').textContent = others.size + 1;
 }
 
@@ -1077,7 +1080,7 @@ let padUiKey = '';
 function sendPadUi() {
   if (!padHost || !pad.on) return;
   const btnA = $('btnA');
-  const ui = { a: btnA.textContent, ad: btnA.disabled ? 1 : 0, mode: S.mode === 'walk' ? 'walk' : 'play', b: S.mode === 'walk' ? '👋' : clawOf(S.mode) ? '🎥' : '', t: save.coins, title: S.mode === 'walk' ? (S.near ? `${S.near.emoji} ${S.near.name}` : '오락실') : $('playTitle').textContent };
+  const ui = { a: btnA.hidden ? '—' : btnA.textContent, ad: btnA.disabled || btnA.hidden ? 1 : 0, mode: S.mode === 'walk' ? 'walk' : 'play', b: S.mode === 'walk' ? '👋' : clawOf(S.mode) ? '🎥' : '', t: save.coins, title: S.mode === 'walk' ? (S.near ? `${S.near.emoji} ${S.near.name}` : '오락실') : $('playTitle').textContent };
   const k = JSON.stringify(ui);
   if (k === padUiKey) return;
   padUiKey = k;
