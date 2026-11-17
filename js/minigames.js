@@ -25,7 +25,7 @@ export function tenGame(ctx, mesh) {
   };
   idle();
   return {
-    label: () => (state === 'run' ? '⏹ STOP' : '▶ START 🎟️1'),
+    label: () => (state === 'run' ? '⏹ STOP' : '▶ START 🪙1'),
     info: () => (Number.isFinite(best) ? `최고 기록 ${best.toFixed(2)}초` : '3초 뒤엔 숫자가 사라져요'),
     busy: () => state === 'run',
     action() {
@@ -97,7 +97,7 @@ export function rouletteGame(ctx, mesh) {
   let won = 0; // 이번에 앉아서 받은 티켓 합
   ctx.show('🎡', '꽝 없음! 모든 칸이 상품 🎁', '#FFD36B');
   return {
-    label: () => (state === 'spin' ? '두근두근…' : '🎡 SPIN 🎟️1'),
+    label: () => (state === 'spin' ? '두근두근…' : '🎡 SPIN 🪙1'),
     info: () => WHEEL.map((w) => w.emoji).filter((e, i, a) => a.indexOf(e) === i).join(' '),
     busy: () => state === 'spin',
     action() {

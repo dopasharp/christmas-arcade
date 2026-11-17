@@ -14,6 +14,7 @@ export const MACHINES = [
   { id: 'basket', name: '농구', emoji: '🏀', x: 2.3, z: -6.5, face: 0, playable: false },
   { id: 'pinball', name: '핀볼', emoji: '🎯', x: 6.4, z: -6.6, face: 0, playable: false },
   { id: 'roulette', name: '행운 룰렛', emoji: '🎡', x: -9.0, z: -0.6, face: Math.PI / 2, playable: true, cost: 1 },
+  { id: 'changer', name: '동전 교환기', emoji: '🪙', x: -9.25, z: 3.4, face: Math.PI / 2, playable: true, instant: true },
   { id: 'prize', name: '선물 교환소', emoji: '🎁', x: 8.9, z: 0.4, face: -Math.PI / 2, playable: false },
 ];
 
@@ -565,6 +566,65 @@ const BUILDERS = {
     knob.position.set(0.55, 1.42, 0.25);
     g.add(base, back, wheel, rim, pointer, marquee, sign, lever, knob);
     return { footprint: { x0: -0.85, x1: 0.85, z0: -0.5, z1: 0.5 }, wheel };
+  },
+  changer({ mat, boxMesh, g }) {
+    const body = mat(0xffc94a, { roughness: 0.4, metalness: 0.2 });
+    const dark = mat(0x15191a);
+    const base = boxMesh(0.95, 1.7, 0.6, body);
+    base.position.set(0, 0.85, 0);
+    const top = boxMesh(1.0, 0.32, 0.66, mat(0xe23b4a, { roughness: 0.45 }));
+    top.position.set(0, 1.86, 0);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.28), new THREE.MeshBasicMaterial({ map: marqueeTex('동전 교환기', '#FFD36B', '#e23b4a') }));
+    sign.position.set(0, 1.86, 0.335);
+    // 큰 동전 그림
+    const coinTex = canvasTex(256, 256, (c, w, h) => {
+      c.fillStyle = '#101310';
+      c.fillRect(0, 0, w, h);
+      c.fillStyle = '#FFD36B';
+      c.beginPath(); c.arc(w / 2, h / 2, 100, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = '#c99a2e'; c.lineWidth = 14;
+      c.beginPath(); c.arc(w / 2, h / 2, 82, 0, Math.PI * 2); c.stroke();
+      c.fillStyle = '#8a5a00';
+      c.font = `110px ${FONT}`;
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('D#', w / 2, h / 2 + 6);
+    });
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.62), new THREE.MeshBasicMaterial({ map: coinTex }));
+    face.position.set(0, 1.28, 0.305);
+    const slot = boxMesh(0.3, 0.05, 0.04, dark);
+    slot.position.set(0, 0.86, 0.31);
+    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.05, 20), new THREE.MeshStandardMaterial({ color: 0xd9ff44, emissive: 0xd9ff44, emissiveIntensity: 0.6 }));
+    btn.rotation.x = Math.PI / 2;
+    btn.position.set(0.26, 0.86, 0.32);
+    const tray = boxMesh(0.6, 0.18, 0.26, dark);
+    tray.position.set(0, 0.36, 0.38);
+    // 쏟아지는 동전 (교환할 때만 보임)
+    const coins = [];
+    const coinGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.015, 16);
+    const coinMat = new THREE.MeshStandardMaterial({ color: 0xffc94a, emissive: 0x6b4a00, emissiveIntensity: 0.4, metalness: 0.4, roughness: 0.3 });
+    for (let i = 0; i < 10; i++) {
+      const c = new THREE.Mesh(coinGeo, coinMat);
+      c.visible = false;
+      g.add(c);
+      coins.push({ m: c, t: -1, x: (Math.random() - 0.5) * 0.4, rz: Math.random() * 3 });
+    }
+    g.add(base, top, sign, face, slot, btn, tray);
+    return {
+      footprint: { x0: -0.55, x1: 0.55, z0: -0.35, z1: 0.55 },
+      pour() { coins.forEach((c, i) => { c.t = -i * 0.08; }); },
+      animate(dt) {
+        for (const c of coins) {
+          if (c.t === -1 && !c.m.visible) continue;
+          c.t += dt;
+          if (c.t < 0) continue;
+          const k = Math.min(1, c.t / 0.5);
+          c.m.visible = c.t < 2.2;
+          c.m.position.set(c.x * k, 0.85 - k * 0.42, 0.34 + k * 0.06);
+          c.m.rotation.set(c.t * 10, 0, c.rz);
+          if (!c.m.visible) c.t = -1;
+        }
+      },
+    };
   },
   prize({ mat, boxMesh, g }) {
     const body = mat(0x1d7a3f, { roughness: 0.5 });

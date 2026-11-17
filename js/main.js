@@ -16,14 +16,18 @@ document.body.classList.toggle('is-touch', TOUCH);
 
 // ------------------------------------------------------------------ 저장 (티켓은 재미용: 기기마다 따로, 매일 최소 10장 충전)
 const SAVE_KEY = 'xmas-arcade-v1';
+const COIN_MAX = 10;
 const today = () => new Date().toLocaleDateString('sv');
 const save = (() => {
   let s = {};
   try { s = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}'); } catch { /* noop */ }
-  s.tickets ??= 10;
+  // 🪙 동전: 오락기에 넣는 돈. 10개까지만 주고, 다 쓰면 동전 교환기에서 다시 10개
+  // 🎟️ 티켓: 게임에서 받는 보상 (쓰지 않고 모이기만 해요)
+  if (s.coins == null) { s.coins = COIN_MAX; s.tickets = 0; }
+  s.tickets ??= 0;
   s.items ??= (s.plush || []).filter(Boolean); // 뽑은 인형 + 미니게임 상품
   delete s.plush;
-  if (s.day !== today()) { s.tickets = Math.max(s.tickets, 10); s.day = today(); }
+  delete s.day;
   return s;
 })();
 const persist = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch { /* noop */ } };
@@ -95,7 +99,7 @@ for (const m of MACHINES.filter((x) => x.claw)) {
   world.colliders.push(rotatedBox(m, { x0: f.x0 * CLAW_SCALE, x1: f.x1 * CLAW_SCALE, z0: f.z0 * CLAW_SCALE, z1: f.z1 * CLAW_SCALE }));
 }
 // 기계 앞 서는 자리까지의 거리
-const FRONT = { claw: 1.55, claw2: 1.55, ten: 1.15, roulette: 1.2, basket: 1.9, pinball: 1.6, prize: 1.1 };
+const FRONT = { changer: 1.0, claw: 1.55, claw2: 1.55, ten: 1.15, roulette: 1.2, basket: 1.9, pinball: 1.6, prize: 1.1 };
 for (const m of MACHINES) {
   const fx = Math.sin(m.face);
   const fz = Math.cos(m.face);
@@ -111,7 +115,7 @@ function queueSlot(m, i) {
 }
 
 // 오락기 위 상태 표시판 (AVAILABLE / PLAYING / WAITING / COMING SOON)
-const LABEL_Y = { claw: 3.4, claw2: 3.4, ten: 3.1, basket: 3.6, pinball: 2.6, roulette: 3.4, prize: 3.5 };
+const LABEL_Y = { changer: 2.55, claw: 3.4, claw2: 3.4, ten: 3.1, basket: 3.6, pinball: 2.6, roulette: 3.4, prize: 3.5 };
 const statusBoards = {};
 for (const m of MACHINES) {
   const tex = canvasTex(512, 200, () => {});
@@ -430,6 +434,7 @@ async function enter() {
   $('meName').textContent = nick;
   $('modeBadge').hidden = netMode !== 'local';
   renderTickets();
+  renderCoins();
   renderBag();
   S.mode = 'walk';
   camInit = false;
@@ -492,6 +497,7 @@ function queueOf(mid) {
   return Object.entries(q).map(([uid, v]) => ({ uid, ...v })).sort((a, b) => a.at - b.at);
 }
 function statusOf(m) {
+  if (m.instant) return save.coins > 0 ? { kind: 'waiting', text: `동전 다 쓰면 🪙+${COIN_MAX}` } : { kind: 'available', text: `지금 🪙+${COIN_MAX} 받기!` };
   if (!m.playable) return { kind: 'soon', text: 'COMING SOON' };
   const p = occupant(m.id);
   const q = queueOf(m.id);
@@ -515,6 +521,7 @@ function nearestMachine() {
 function promptFor(m) {
   if (!m) return null;
   if (!m.playable) return { text: `${m.emoji} 준비 중이에요`, act: false };
+  if (m.instant) return save.coins > 0 ? { text: `🪙 ${save.coins}개 남았어요 (다 쓰면 와요)`, act: false } : { text: `E : 🪙 ${COIN_MAX}개 받기`, act: true };
   if (S.queue === m.id) {
     if (S.turn) return { text: '내 차례! E : PLAY', act: true };
     const i = queueOf(m.id).findIndex((q) => q.uid === net.uid);
@@ -543,6 +550,7 @@ async function action() {
     if (!m) wave();
     return;
   }
+  if (m.instant) { exchangeCoins(m); return; }
   busyAct = true;
   try {
     const mine = S.queue === m.id;
@@ -650,13 +658,39 @@ async function leaveQueue(msg) {
   sendMe(true);
 }
 
-// ------------------------------------------------------------------ 티켓
+// ------------------------------------------------------------------ 동전 · 티켓
 function pay() {
-  if (save.tickets <= 0) { toast('🎟️ 티켓이 없어요. 내일 다시 10장 충전돼요!'); sfx.miss(); return false; }
-  save.tickets--;
+  if (save.coins <= 0) {
+    toast('🪙 동전이 없어요! 입구 왼쪽 동전 교환기에서 10개 받아요');
+    banner('🪙 동전 교환기로!', 'miss', 1600);
+    sfx.miss();
+    return false;
+  }
+  save.coins--;
   persist();
-  renderTickets(-1);
+  renderCoins(-1);
+  if (save.coins === 0) setTimeout(() => toast('🪙 동전을 다 썼어요. 동전 교환기에서 10개 더 받을 수 있어요'), 2400);
   return true;
+}
+function exchangeCoins(m) {
+  if (save.coins > 0) { toast(`🪙 동전이 ${save.coins}개 남았어요. 다 쓰면 다시 와요!`); return; }
+  save.coins = COIN_MAX;
+  persist();
+  renderCoins(COIN_MAX);
+  world.machineMeshes[m.id]?.pour?.();
+  for (let i = 0; i < 6; i++) setTimeout(() => sfx.coin(), i * 110);
+  banner(`🪙 +${COIN_MAX}`, 'win', 1600);
+  me.avatar.wave();
+}
+function renderCoins(delta = 0) {
+  $('coins').textContent = save.coins;
+  $('coinChip').classList.toggle('empty', save.coins <= 0);
+  if (delta) {
+    const el = $('coinChip');
+    el.classList.remove('bump', 'drop');
+    void el.offsetWidth;
+    el.classList.add(delta > 0 ? 'bump' : 'drop');
+  }
 }
 function reward(n, why) {
   save.tickets += n;
@@ -753,7 +787,7 @@ function renderPlayHud() {
     $('playTimer').textContent = ph === 'play' ? Math.ceil(claw.game.left) : '';
     $('playTimer').classList.toggle('hurry', ph === 'play' && claw.game.left <= 5);
     $('playInfo').textContent = `🎁 ${save.items.length}`;
-    $('playSub').textContent = ph === 'idle' ? '🪙 코인 = 🎟️1 · 뽑으면 🎟️+3' : ph === 'play' ? (TOUCH ? '조이스틱으로 옮기고 뽑기!' : '방향키로 옮기고 Space') : '두근두근…';
+    $('playSub').textContent = ph === 'idle' ? `🪙 동전 1개 (남은 ${save.coins}) · 뽑으면 🎟️+3` : ph === 'play' ? (TOUCH ? '조이스틱으로 옮기고 뽑기!' : '방향키로 옮기고 Space') : '두근두근…';
     $('keyHintPlay').textContent = ph === 'idle' ? 'E 코인' : ph === 'play' ? 'Space 뽑기' : '…';
   } else if (game) {
     btnA.textContent = game.label();
@@ -779,7 +813,7 @@ function renderWalkHud() {
   } else el.hidden = true;
   const btnA = $('btnA');
   btnA.disabled = false;
-  btnA.textContent = p?.act ? (S.queue === m?.id && !S.turn ? '…' : /줄/.test(p.text) ? '줄서기' : 'PLAY') : '👋';
+  btnA.textContent = p?.act ? (m?.instant ? '🪙 받기' : S.queue === m?.id && !S.turn ? '…' : /줄/.test(p.text) ? '줄서기' : 'PLAY') : '👋';
   $('onlineCount').textContent = others.size + 1;
 }
 
@@ -979,7 +1013,7 @@ let padUiKey = '';
 function sendPadUi() {
   if (!padHost || !pad.on) return;
   const btnA = $('btnA');
-  const ui = { a: btnA.textContent, ad: btnA.disabled ? 1 : 0, mode: S.mode === 'walk' ? 'walk' : 'play', b: S.mode === 'walk' ? '👋' : clawOf(S.mode) ? '🎥' : '', t: save.tickets, title: S.mode === 'walk' ? (S.near ? `${S.near.emoji} ${S.near.name}` : '오락실') : $('playTitle').textContent };
+  const ui = { a: btnA.textContent, ad: btnA.disabled ? 1 : 0, mode: S.mode === 'walk' ? 'walk' : 'play', b: S.mode === 'walk' ? '👋' : clawOf(S.mode) ? '🎥' : '', t: save.coins, title: S.mode === 'walk' ? (S.near ? `${S.near.emoji} ${S.near.name}` : '오락실') : $('playTitle').textContent };
   const k = JSON.stringify(ui);
   if (k === padUiKey) return;
   padUiKey = k;

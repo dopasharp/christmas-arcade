@@ -37,6 +37,9 @@ body:not(.is-touch) .touch-only { display: none !important; }
 .chip.ticket b { font-size: 16px; }
 .chip.ticket.bump { animation: bump .5s var(--ease-standard); }
 .chip.ticket.drop { animation: dropT .4s var(--ease-standard); }
+.chip.coin.empty { border-color: var(--color-pink); animation: pulseEmpty 1.2s ease-in-out infinite; }
+.chip.coin.empty b { color: var(--color-pink); }
+@keyframes pulseEmpty { 50% { box-shadow: 0 0 0 4px rgba(255, 108, 145, .35); } }
 @keyframes bump { 40% { transform: scale(1.25); background: var(--color-brand); color: var(--color-on-brand); } }
 @keyframes dropT { 40% { transform: translateY(3px) scale(.92); } }
 .chip.bag { color: var(--color-text); cursor: pointer; font: inherit; font-size: 14px; }

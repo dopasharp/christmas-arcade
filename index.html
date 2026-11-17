@@ -22,11 +22,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dopasharp/tokens.css">
   <link rel="stylesheet" href="dopasharp/components.css">
-  <link rel="stylesheet" href="css/arcade.css?v=5">
+  <link rel="stylesheet" href="css/arcade.css?v=6">
   <script src="dopasharp/dopasharp.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
-  <script type="module" src="js/main.js?v=5"></script>
+  <script type="module" src="js/main.js?v=6"></script>
   <script>
     document.addEventListener('submit', function (e) {
       if (window.__arcadeReady) return;
@@ -47,7 +47,8 @@
     </div>
     <div class="hud-tr">
       <span class="chip me" id="meName"></span>
-      <span class="chip ticket" id="ticketChip">🎟️ <b id="tickets">10</b></span>
+      <span class="chip ticket coin" id="coinChip" title="동전 (오락기에 넣는 돈)">🪙 <b id="coins">10</b></span>
+      <span class="chip ticket" id="ticketChip" title="티켓 (보상)">🎟️ <b id="tickets">0</b></span>
       <button class="chip bag" id="bagBtn" aria-label="가방 보기">🎁 <b id="bagCount">0</b></button>
       <button id="soundBtn" class="icon-btn" aria-label="소리 켜기/끄기">🔊</button>
     </div>
