@@ -198,3 +198,5 @@ body:not(.is-touch) .toast { bottom: 80px; }
 .emote-menu button:hover, .emote-menu button:active { background: var(--color-brand); }
 .emote-menu button:hover small, .emote-menu button:active small { color: var(--color-on-brand); }
 @keyframes emIn { from { opacity: 0; transform: rotate(var(--a)) translateY(-40px) rotate(calc(-1 * var(--a))) scale(.5); } }
+
+.reload-btn { margin-left: 6px; padding: 4px 10px; border-radius: var(--radius-pill); border: 1px solid var(--color-error); background: transparent; color: var(--color-error); font: inherit; font-weight: 800; cursor: pointer; }

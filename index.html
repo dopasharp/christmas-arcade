@@ -22,18 +22,44 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dopasharp/tokens.css">
   <link rel="stylesheet" href="dopasharp/components.css">
-  <link rel="stylesheet" href="css/arcade.css?v=10">
+  <link rel="stylesheet" href="css/arcade.css?v=11">
   <script src="dopasharp/dopasharp.js" defer></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
-  <script type="module" src="js/main.js?v=10"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" async></script>
   <script>
-    document.addEventListener('submit', function (e) {
-      if (window.__arcadeReady) return;
-      e.preventDefault();
-      document.getElementById('entryError').textContent = '게임을 불러오는 중이에요. 잠시 후 다시 눌러 주세요.';
-    });
+    // 게임 코드를 못 불러왔을 때 (옛 캐시 · 네트워크 · 오래된 브라우저) "잠시 후"가 아니라 이유와 새로고침 버튼을 보여줘요
+    (function () {
+      var reason = null;
+      function show() {
+        var el = document.getElementById('entryError');
+        if (!el || window.__arcadeReady || !reason) return;
+        el.innerHTML = reason + ' <button type="button" class="reload-btn" onclick="location.reload()">새로고침</button>';
+      }
+      function fail(r) { if (window.__arcadeReady || reason) return; reason = r; show(); }
+      if (window.HTMLScriptElement && HTMLScriptElement.supports && !HTMLScriptElement.supports('importmap')) {
+        fail('이 브라우저에서는 열 수 없어요. 최신 크롬·사파리(iOS 16.4 이상)로 열어 주세요.');
+      }
+      // 게임 코드(js/…)나 three.js 문제만 (폰트·QR·분석 스크립트 실패는 무시)
+      var mine = function (url) { return /\/js\/|three@/.test(url || ''); };
+      window.addEventListener('error', function (e) {
+        if (window.__arcadeReady) return;
+        var t = e.target;
+        var url = t && t.tagName ? (t.src || t.href) : e.filename;
+        if (!mine(url)) return;
+        console.error('arcade load error', e.message || url);
+        fail('게임을 불러오지 못했어요.');
+      }, true);
+      setTimeout(function () { fail('불러오는 데 오래 걸리고 있어요. 인터넷 연결을 확인하고'); }, 20000);
+      document.addEventListener('DOMContentLoaded', show);
+      document.addEventListener('submit', function (e) {
+        if (window.__arcadeReady) return;
+        e.preventDefault();
+        if (reason) show();
+        else document.getElementById('entryError').textContent = '게임을 불러오는 중이에요. 잠시만요…';
+      });
+    })();
   </script>
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
+  <script type="module" src="js/main.js?v=11"></script>
 </head>
 <body class="arcade">
   <canvas id="scene"></canvas>

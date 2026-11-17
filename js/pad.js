@@ -1,5 +1,5 @@
 // 폰 조종기: PC 오락실 화면의 내 캐릭터/오락기를 조종. 게임은 PC 가 돌리고, 폰은 입력만 보내요.
-import { connect, normalizeCode } from './net.js?v=3';
+import { connect, normalizeCode } from './net.js?v=11';
 
 const $ = (id) => document.getElementById(id);
 const code = normalizeCode(new URLSearchParams(location.search).get('c'));

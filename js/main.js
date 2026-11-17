@@ -1,14 +1,14 @@
 // 도파# 크리스마스 오락실: 장면 · 캐릭터 이동 · 멀티플레이 · 대기열 · 오락기 플레이를 묶는 곳.
 // 폰 하나로도(화면 조이스틱) PC로도(WASD, 폰 QR 조종기) 할 수 있어요.
 import * as THREE from 'three';
-import * as sfx from './sound.js?v=3';
-import { buildWorld, MACHINES, ROOM, SPAWN, CLAW_SCALE, rotatedBox, canvasTex } from './world.js?v=3';
-import { createClawMachine } from './claw.js?v=3';
-import { createAvatar, OUTFITS, roundRect, EMOTES } from './avatar.js?v=3';
-import { tenGame, rouletteGame, applyTenLive, applyRouletteLive } from './minigames.js?v=3';
-import { connect, mode as netMode, STALE_MS, makeCode } from './net.js?v=3';
-import { itemInfo, isItem } from './plush.js?v=3';
-import { GAMES2 } from './arcade2.js?v=1';
+import * as sfx from './sound.js?v=11';
+import { buildWorld, MACHINES, ROOM, SPAWN, CLAW_SCALE, rotatedBox, canvasTex } from './world.js?v=11';
+import { createClawMachine } from './claw.js?v=11';
+import { createAvatar, OUTFITS, roundRect, EMOTES } from './avatar.js?v=11';
+import { tenGame, rouletteGame, applyTenLive, applyRouletteLive } from './minigames.js?v=11';
+import { connect, mode as netMode, STALE_MS, makeCode } from './net.js?v=11';
+import { itemInfo, isItem } from './plush.js?v=11';
+import { GAMES2 } from './arcade2.js?v=11';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -1328,3 +1328,4 @@ addEventListener('pagehide', () => {
 
 window.__arcade = { S, claw: claws.claw, claws, customs, MACHINES, get game() { return game; }, others, save, prize, get me() { return me; }, get net() { return net; }, get machines() { return machinesState; }, action, exitMachine, scene, camera };
 window.__arcadeReady = true;
+if ($('entryError').querySelector('.reload-btn')) $('entryError').textContent = '';

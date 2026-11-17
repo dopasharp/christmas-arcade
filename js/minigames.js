@@ -1,7 +1,7 @@
 // 인형뽑기 말고 지금 할 수 있는 미니게임 두 개. main.js 가 버튼(E / ACTION)을 action() 으로 넘겨줘요.
 //   ctx = { sfx, pay(): bool, reward(n, why), prize(id, why), banner(text, kind, ms), confetti(n), show(big, sub, color), sendLive(d) }
-import { WHEEL } from './world.js?v=3';
-import { itemInfo } from './plush.js?v=3';
+import { WHEEL } from './world.js?v=11';
+import { itemInfo } from './plush.js?v=11';
 
 const TARGET = 10;
 const SHOW_SECS = 3; // 처음 3초만 숫자가 보이고 그다음은 ??.??

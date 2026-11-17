@@ -5,7 +5,7 @@
 //   m.cameraPose('claw' | 'machine', cam, look)  → 로컬 좌표 (group.localToWorld 로 변환해서 쓰기)
 //   m.live() / m.applyLive(data)                 → 다른 사람이 하는 걸 구경할 때 집게 위치만 맞춤
 import * as THREE from 'three';
-import { PRIZE_SETS } from './plush.js?v=3';
+import { PRIZE_SETS } from './plush.js?v=11';
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

@@ -3,8 +3,8 @@
 //   진행기: label() · info() · busy() · action() · update(dt) · exit() · pointer?(type, x, y)
 //   ctx: sfx · pay() · reward(n) · prize(id, why) · score(s, v) · banner · confetti · show(big, sub, color) · ray(x, y) · flash(x, y, hit)
 import * as THREE from 'three';
-import { canvasTex, marqueeTex, FONT } from './world.js?v=3';
-import { makeItem, pickKind, pickDoll, pickAcc, itemInfo } from './plush.js?v=3';
+import { canvasTex, marqueeTex, FONT } from './world.js?v=11';
+import { makeItem, pickKind, pickDoll, pickAcc, itemInfo } from './plush.js?v=11';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

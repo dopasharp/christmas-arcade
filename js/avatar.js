@@ -1,7 +1,7 @@
 // 캐릭터: 산타 모자 쓴 동글동글 꼬마. 지오메트리는 모두 공유하고 색 재질만 캐시해서 여러 명이어도 가벼워요.
 import * as THREE from 'three';
-import { canvasTex } from './world.js?v=3';
-import { makeTinyItem, isItem, isBig } from './plush.js?v=3';
+import { canvasTex } from './world.js?v=11';
+import { makeTinyItem, isItem, isBig } from './plush.js?v=11';
 
 export const OUTFITS = [
   { key: 'red', label: '산타', body: 0xe23b4a, hat: 0xe23b4a, scarf: 0xffffff },
