@@ -22,11 +22,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dopasharp/tokens.css">
   <link rel="stylesheet" href="dopasharp/components.css">
-  <link rel="stylesheet" href="css/arcade.css?v=3">
+  <link rel="stylesheet" href="css/arcade.css?v=4">
   <script src="dopasharp/dopasharp.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
-  <script type="module" src="js/main.js?v=3"></script>
+  <script type="module" src="js/main.js?v=4"></script>
   <script>
     document.addEventListener('submit', function (e) {
       if (window.__arcadeReady) return;
@@ -100,7 +100,10 @@
       <p class="tagline">WELCOME TO OUR LITTLE ARCADE 🎄</p>
       <label class="field">
         <span class="dopa-label">YOUR NICKNAME</span>
-        <input id="nick" maxlength="10" placeholder="닉네임 (10자까지)" enterkeyhint="go" required>
+        <span class="nick-row">
+          <input id="nick" maxlength="10" placeholder="닉네임 (10자까지)" enterkeyhint="go" required>
+          <button id="diceBtn" type="button" class="dice-btn" aria-label="랜덤 닉네임">🎲</button>
+        </span>
       </label>
       <div class="field">
         <span class="dopa-label">OUTFIT</span>

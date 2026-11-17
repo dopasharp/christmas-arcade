@@ -252,6 +252,19 @@ $('soundBtn').addEventListener('click', () => {
 });
 addEventListener('pointerdown', () => sfx.unlock());
 
+// ------------------------------------------------------------------ 랜덤 닉네임 (크리스마스 꾸밈말 + 이름, 10자 이내)
+const NICK_A = ['반짝이는', '졸린', '배고픈', '수줍은', '용감한', '말랑한', '꽁꽁 언', '신난', '포근한', '뽀송한', '달콤한', '두근두근', '느긋한', '깜찍한', '수상한', '부지런한', '눈 덮인', '빨간 코', '춤추는', '선물 든'];
+const NICK_B = ['산타', '루돌프', '눈사람', '펭귄', '엘프', '진저맨', '북극곰', '트리', '양말', '썰매', '눈송이', '호빵', '군고구마', '붕어빵', '캐롤', '종소리', '사탕', '곰돌이', '토끼', '호두까기'];
+function randomNick() {
+  for (let i = 0; i < 20; i++) {
+    const a = NICK_A[Math.floor(Math.random() * NICK_A.length)];
+    const b = NICK_B[Math.floor(Math.random() * NICK_B.length)];
+    const n = `${a} ${b}`;
+    if (n.length <= 10) return n;
+  }
+  return `산타${Math.floor(Math.random() * 900 + 100)}`;
+}
+
 // ------------------------------------------------------------------ 입장 화면
 {
   const chips = $('outfits');
@@ -265,7 +278,15 @@ addEventListener('pointerdown', () => sfx.unlock());
     previewAvatar();
   });
   sel();
-  $('nick').value = localStorage.getItem('xmas-nick') || '';
+  $('nick').value = localStorage.getItem('xmas-nick') || randomNick();
+  $('diceBtn').addEventListener('click', () => {
+    $('nick').value = randomNick();
+    preview?.setName($('nick').value);
+    const b = $('diceBtn');
+    b.classList.remove('roll');
+    void b.offsetWidth;
+    b.classList.add('roll');
+  });
   $('entryForm').addEventListener('submit', (e) => { e.preventDefault(); enter(); });
 }
 // 입장 화면 뒤에서 미리보기 캐릭터
