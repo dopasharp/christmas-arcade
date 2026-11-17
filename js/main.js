@@ -54,6 +54,15 @@ function resize() {
 addEventListener('resize', resize);
 resize();
 
+// ------------------------------------------------------------------ 기계별 최고 기록
+// claw: 한 번 앉아서 뽑은 인형 수 · ten: 10초와의 오차(작을수록 1등) · roulette: 한 번 앉아서 받은 티켓
+const SCORE = {
+  claw: { asc: false, label: '한 번에 뽑은 인형', fmt: (e) => `🧸 ${e.s}개` },
+  ten: { asc: true, label: '10초에 가장 가깝게', fmt: (e) => `${Number(e.v).toFixed(2)}초` },
+  roulette: { asc: false, label: '한 번에 받은 티켓', fmt: (e) => `🎟️ ${e.s}` },
+};
+const boards = {}; // mid → 상위 5명
+
 // ------------------------------------------------------------------ 오락기 배치
 const MDEF = Object.fromEntries(MACHINES.map((m) => [m.id, m]));
 const claw = createClawMachine({
@@ -64,6 +73,8 @@ const claw = createClawMachine({
     onWin(kind, k, acc) {
       prize(acc ? `${kind}.${acc}` : kind);
       reward(3);
+      S.caught = (S.caught || 0) + 1;
+      submitScore('claw', S.caught, S.caught);
     },
   },
 });
@@ -97,9 +108,9 @@ function queueSlot(m, i) {
 const LABEL_Y = { claw: 3.4, ten: 3.1, basket: 3.6, pinball: 2.6, roulette: 3.4, prize: 3.5 };
 const statusBoards = {};
 for (const m of MACHINES) {
-  const tex = canvasTex(512, 150, () => {});
+  const tex = canvasTex(512, 200, () => {});
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-  sp.scale.set(2.0, 0.59, 1);
+  sp.scale.set(2.0, 0.78, 1);
   sp.position.set(m.x + m.fx * 0.2, LABEL_Y[m.id], m.z + m.fz * 0.2);
   sp.renderOrder = 15;
   scene.add(sp);
@@ -107,7 +118,9 @@ for (const m of MACHINES) {
 }
 function drawStatus(m, st) {
   const b = statusBoards[m.id];
-  const key = `${st.kind}|${st.text}`;
+  const top = boards[m.id]?.[0];
+  const topText = SCORE[m.id] ? (top ? `👑 ${top.n} · ${SCORE[m.id].fmt(top)}` : '👑 첫 기록에 도전!') : '';
+  const key = `${st.kind}|${st.text}|${topText}`;
   if (b.key === key) return;
   b.key = key;
   const c = b.tex.userData.canvas;
@@ -115,7 +128,7 @@ function drawStatus(m, st) {
   g.clearRect(0, 0, c.width, c.height);
   const col = { available: '#86EFC8', playing: '#FF6C91', waiting: '#FFD36B', soon: '#AAB4AE' }[st.kind];
   g.fillStyle = 'rgba(11,14,13,.82)';
-  roundRect(g, 16, 10, 480, 130, 30);
+  roundRect(g, 16, 10, 480, topText ? 180 : 130, 30);
   g.fill();
   g.strokeStyle = col;
   g.lineWidth = 5;
@@ -127,6 +140,13 @@ function drawStatus(m, st) {
   g.fillStyle = col;
   g.font = '800 34px "Pretendard Variable", sans-serif';
   g.fillText(st.text, 256, 112);
+  if (topText) {
+    g.fillStyle = '#FFD36B';
+    g.font = '700 30px "Pretendard Variable", sans-serif';
+    let t = topText;
+    while (g.measureText(t).width > 450 && t.length > 4) t = `${t.slice(0, -2)}…`;
+    g.fillText(t, 256, 160);
+  }
   b.tex.needsUpdate = true;
 }
 
@@ -292,6 +312,7 @@ async function enter() {
   camInit = false;
   net.onPlayer(onPlayer);
   net.onMachines((v) => { machinesState = v; });
+  for (const mid of Object.keys(SCORE)) net.onScores(mid, SCORE[mid].asc, (list) => { boards[mid] = list; renderRank(); });
   sendMe(true);
   window.DopaSharp?.track('game_start');
   toast(`${nick}님, 메리 크리스마스! 🎄`);
@@ -439,6 +460,7 @@ setInterval(() => {
 function startMachine(m) {
   S.mode = m.id;
   S.idle = 0;
+  S.caught = 0;
   S.view = 'claw';
   me.x = m.spot.x;
   me.z = m.spot.z;
@@ -451,6 +473,7 @@ function startMachine(m) {
     prize: (id, why) => prize(id, why),
     show: (big, sub, color) => { $('playBig').textContent = big; $('playBig').style.color = color || ''; $('playSub').textContent = sub; },
     sendLive: (d) => net.sendLive(m.id, d),
+    score: (s, v) => submitScore(m.id, s, v),
   };
   if (m.id === 'ten') game = tenGame(ctx, world.machineMeshes.ten);
   else if (m.id === 'roulette') game = rouletteGame(ctx, world.machineMeshes.roulette);
@@ -461,6 +484,7 @@ function startMachine(m) {
   $('viewBtn').hidden = m.id !== 'claw';
   if (m.id === 'claw') ctx.show('', '', '');
   document.body.classList.add('playing');
+  renderRank();
   renderPlayHud();
   sendMe(true);
   window.DopaSharp?.track('machine_start', { machine: m.id });
@@ -480,6 +504,7 @@ async function exitMachine(force = false) {
   game = null;
   S.mode = 'walk';
   $('playHud').hidden = true;
+  $('rankPanel').hidden = true;
   document.body.classList.remove('playing');
   me.x = m.spot.x + m.fx * 0.6;
   me.z = m.spot.z + m.fz * 0.6;
@@ -512,6 +537,35 @@ function reward(n, why) {
   renderTickets(n);
   if (why) toast(`${why} · 🎟️ +${n}`);
 }
+// 기록 남기기: 내 최고 기록보다 좋을 때만 서버에 저장 (트랜잭션)
+async function submitScore(mid, s, v) {
+  const conf = SCORE[mid];
+  if (!conf || !net) return;
+  const before = boards[mid] || [];
+  const wasTop = before[0];
+  let ok = false;
+  try { ok = await net.submitScore(mid, S.nick, s, v, conf.asc); } catch (e) { console.warn('score', e); return; }
+  if (!ok) return;
+  const better = (a, b) => (conf.asc ? a < b : a > b);
+  setTimeout(() => {
+    if (!wasTop || better(s, wasTop.s)) { banner(`👑 ${MDEF[mid].name} 1위!`, 'rare', 2200); confetti(60); }
+    else banner('🏆 내 최고 기록!', 'go', 1600);
+  }, 1900);
+}
+function renderRank() {
+  const el = $('rankPanel');
+  const mid = S.mode;
+  const conf = SCORE[mid];
+  if (!conf) { el.hidden = true; return; }
+  const list = boards[mid] || [];
+  const mine = list.find((e) => e.uid === net?.uid);
+  el.hidden = false;
+  el.innerHTML = `<div class="rank-head">🏆 ${conf.label}</div>${list.length
+    ? `<ol>${list.map((e, i) => `<li class="${e.uid === net?.uid ? 'me' : ''}"><span>${['👑', '2', '3', '4', '5'][i]}</span><b>${esc(e.n)}</b><em>${conf.fmt(e)}</em></li>`).join('')}</ol>`
+    : '<p>아직 기록이 없어요. 첫 1위에 도전!</p>'}${mine ? '' : '<p class="rank-mine">내 기록은 아직 순위 밖</p>'}`;
+}
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
 // 상품: 가방에 쌓이고, 최근 CARRY_MAX 개는 캐릭터에 주렁주렁
 function prize(id, why) {
   if (!isItem(id)) return;

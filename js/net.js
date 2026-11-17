@@ -49,6 +49,11 @@ async function firebaseStore() {
     remove: (p) => d.remove(r(p)),
     get: async (p) => (await d.get(r(p))).val(),
     onValue(p, cb) { return d.onValue(r(p), (s) => cb(s.val())); },
+    // 상위 n개 (order 필드 기준). asc = 작을수록 좋은 기록
+    onTop(p, order, n, asc, cb) {
+      const q = d.query(r(p), d.orderByChild(order), asc ? d.limitToFirst(n) : d.limitToLast(n));
+      return d.onValue(q, (s) => cb(s.val()));
+    },
     onChild(p, cb) {
       const offs = [
         d.onChildAdded(r(p), (s) => cb(s.key, s.val())),
@@ -142,6 +147,7 @@ async function localStore() {
     remove: (p) => set(p, null),
     get: async (p) => clone(get(p)),
     onValue(path, cb) { const l = { path, type: 'value', cb }; listeners.add(l); cb(clone(get(path))); return () => listeners.delete(l); },
+    onTop(path, order, n, asc, cb) { return this.onValue(path, cb); }, // 로컬은 전부 받아서 정렬은 받는 쪽에서
     onChild(path, cb) {
       const l = { path, type: 'child', cb, known: new Set() };
       listeners.add(l);
@@ -219,6 +225,23 @@ export async function connect() {
       store.cancelDisconnect(P(`machines/${mid}/queue/${uid}`));
     },
     sendLive(mid, d) { return store.set(P(`machines/${mid}/live`), d); },
+
+    // ---- 기계별 최고 기록 (scores/{기계}/{uid} = { n 닉네임, s 점수, v 표시값, at }). 내 최고 기록만 하나 남음
+    // asc: 작을수록 좋은 기록 (10초 맞추기 오차)
+    async submitScore(mid, n, s, v, asc) {
+      const res = await store.transaction(P(`scores/${mid}/${uid}`), (cur) => {
+        if (cur && (asc ? s >= cur.s : s <= cur.s)) return undefined; // 내 기록보다 못하면 그대로
+        return { n, s, v, at: store.now() };
+      });
+      return res.committed;
+    },
+    onScores(mid, asc, cb, top = 5) {
+      return store.onTop(P(`scores/${mid}`), 's', top, asc, (v) => {
+        const list = Object.entries(v || {}).map(([id, e]) => ({ uid: id, ...e }))
+          .sort((a, b) => (asc ? a.s - b.s : b.s - a.s) || a.at - b.at);
+        cb(list.slice(0, top));
+      });
+    },
 
     // ---- 폰 조종기 (QR). PC 가 code 방을 열고, 폰은 입력만 보냄
     async hostPad(code, { onInput, onPad }) {

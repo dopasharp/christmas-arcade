@@ -50,6 +50,7 @@ export function tenGame(ctx, mesh) {
         ctx.show(v, `${msg} · ${info.emoji} ${info.name}${n ? ` + 🎟️${n}` : ''}`, color);
         screen(v, color);
         ctx.prize(item, '10초 맞추기');
+        ctx.score(Math.round(d * 1000), +t.toFixed(2)); // 오차(ms), 표시용 시간
         if (n) ctx.reward(n);
         ctx.sfx.win();
         if (n >= 5) ctx.confetti(n * 8);
@@ -90,6 +91,7 @@ export function rouletteGame(ctx, mesh) {
   let lastSeg = 0;
   let liveT = 0;
   const DUR = 4.2;
+  let won = 0; // 이번에 앉아서 받은 티켓 합
   ctx.show('🎡', '꽝 없음! 모든 칸이 상품 🎁', '#FFD36B');
   return {
     label: () => (state === 'spin' ? '두근두근…' : '🎡 SPIN 🎟️1'),
@@ -123,6 +125,8 @@ export function rouletteGame(ctx, mesh) {
         const info = itemInfo(seg.item);
         ctx.prize(seg.item, '행운 룰렛');
         if (seg.v) ctx.reward(seg.v);
+        won += seg.v;
+        ctx.score(won, won);
         ctx.sfx.win();
         ctx.banner(`${info.emoji} ${info.name} GET!`, seg.v >= 5 ? 'rare' : 'win', 1800);
         if (seg.v >= 2) ctx.confetti(seg.v * 14);

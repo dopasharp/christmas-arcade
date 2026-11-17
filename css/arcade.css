@@ -98,6 +98,21 @@ body:not(.is-touch) .touch-only { display: none !important; }
   .play-hud[data-machine="claw"] .play-center { bottom: 70px; }
 }
 
+/* 기계별 순위 */
+.rank-panel { position: absolute; left: 12px; top: calc(env(safe-area-inset-top, 0px) + 160px); width: 210px; padding: 10px 12px; border-radius: var(--radius-lg); background: rgba(11, 14, 13, .82); border: 1px solid #ffd36b55; font-size: 13px; }
+.rank-head { font-weight: 800; color: #FFD36B; margin-bottom: 6px; }
+.rank-panel ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.rank-panel li { display: flex; align-items: center; gap: 6px; }
+.rank-panel li span { width: 20px; text-align: center; font-weight: 800; color: var(--color-text-muted); }
+.rank-panel li b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rank-panel li em { font-style: normal; font-weight: 800; color: var(--color-brand); white-space: nowrap; }
+.rank-panel li.me b { color: var(--color-brand); }
+.rank-panel p { margin: 4px 0 0; color: var(--color-text-muted); font-size: 12px; }
+@media (max-width: 480px) {
+  .rank-panel { top: calc(env(safe-area-inset-top, 0px) + 158px); width: 168px; font-size: 12px; padding: 8px 10px; }
+  .rank-panel li:nth-child(n+4) { display: none; }
+}
+
 /* ---------------------------------------------------------------- 오버레이 (입장, QR) */
 .overlay { position: fixed; inset: 0; z-index: 50; display: none; flex-direction: column; align-items: center; justify-content: center; padding: var(--page-padding); overflow: auto; }
 .overlay.show { display: flex; }

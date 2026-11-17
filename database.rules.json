@@ -78,6 +78,34 @@
             }
           }
         },
+        "scores": {
+          ".read": "auth != null",
+          "$mid": {
+            ".validate": "$mid.matches(/^(claw|ten|roulette)$/)",
+            ".indexOn": [
+              "s"
+            ],
+            "$uid": {
+              ".write": "auth != null && auth.uid === $uid",
+              ".validate": "newData.hasChildren(['n','s','v','at']) && (!data.exists() || ($mid === 'ten' ? newData.child('s').val() < data.child('s').val() : newData.child('s').val() > data.child('s').val()))",
+              "n": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 12"
+              },
+              "s": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= ($mid === 'ten' ? 20000 : 500)"
+              },
+              "v": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 500"
+              },
+              "at": {
+                ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+              },
+              "$other": {
+                ".validate": false
+              }
+            }
+          }
+        },
         "$other": {
           ".validate": false
         }
