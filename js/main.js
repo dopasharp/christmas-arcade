@@ -172,6 +172,8 @@ const S = {
   near: null,
   zoom: 1, // 오락실 걸어다닐 때 카메라 거리 배율
   zoomPlay: 1, // 오락기 앞에서
+  yaw: 0, pitch: 0, // 화면을 끌어서 돌린 시점 (걸어다닐 때)
+  playYaw: 0, playPitch: 0, // 오락기 앞에서
   go: null, // 클릭한 곳으로 걸어가기 { x, z, mid, best, stuck }
 };
 let net = null;
@@ -215,6 +217,12 @@ function moveInput() {
   if (!x && !z && pad.on) { x = pad.x; z = pad.z; }
   const l = Math.hypot(x, z);
   if (l > 1) { x /= l; z /= l; }
+  // 걸어다닐 때는 돌려 본 화면 기준으로 (위 = 화면 안쪽)
+  if (S.mode === 'walk' && S.yaw) {
+    const c = Math.cos(S.yaw);
+    const s = Math.sin(S.yaw);
+    [x, z] = [x * c + z * s, -x * s + z * c];
+  }
   return { x, z };
 }
 
@@ -276,6 +284,22 @@ function randomNick() {
 
 // ------------------------------------------------------------------ 클릭/탭으로 걸어가기 + 확대/축소 (휠 · 두 손가락 · ＋/－)
 const ZOOM = { min: 0.5, max: 1.8 };
+function rotateView(dx, dy) {
+  if (S.mode === 'entry') return;
+  if (S.mode === 'walk') {
+    S.yaw -= dx * 0.008;
+    S.pitch = clamp(S.pitch + dy * 0.005, -0.55, 0.5);
+  } else if (!(clawOf(S.mode) && S.view === 'claw')) {
+    S.playYaw = clamp(S.playYaw - dx * 0.006, -1.0, 1.0);
+    S.playPitch = clamp(S.playPitch + dy * 0.004, -0.35, 0.6);
+  }
+}
+function resetView() {
+  if (S.mode === 'walk') { S.yaw = 0; S.pitch = 0; S.zoom = 1; }
+  else { S.playYaw = 0; S.playPitch = 0; S.zoomPlay = 1; }
+}
+canvas.addEventListener('dblclick', resetView);
+$('viewReset').addEventListener('click', resetView);
 function zoomBy(k) {
   if (S.mode === 'entry') return;
   if (S.mode === 'walk') S.zoom = clamp(S.zoom * k, ZOOM.min, ZOOM.max);
@@ -348,6 +372,14 @@ function tapAt(cx, cy) {
     p.x = e.clientX;
     p.y = e.clientY;
     if (tap && Math.hypot(p.x - tap.x, p.y - tap.y) > 12) tap = null;
+    if (pts.size === 1 && !tap) {
+      // 한 손가락(마우스)으로 끌기 = 시점 돌리기
+      const dx = e.movementX || (p.x - (p.lx ?? p.x));
+      const dy = e.movementY || (p.y - (p.ly ?? p.y));
+      rotateView(dx, dy);
+    }
+    p.lx = p.x;
+    p.ly = p.y;
     if (pts.size === 2) {
       const [a, b] = [...pts.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
@@ -595,6 +627,8 @@ function startMachine(m) {
   S.caught = 0;
   S.view = 'claw';
   S.zoomPlay = 1;
+  S.playYaw = 0;
+  S.playPitch = 0;
   cancelGo();
   me.x = m.spot.x;
   me.z = m.spot.z;
@@ -618,6 +652,7 @@ function startMachine(m) {
   $('viewBtn').hidden = !m.claw;
   if (m.claw) ctx.show('', '', '');
   document.body.classList.add('playing');
+  document.body.classList.toggle('claw-play', !!m.claw);
   renderRank();
   renderPlayHud();
   sendMe(true);
@@ -640,7 +675,7 @@ async function exitMachine(force = false) {
   S.mode = 'walk';
   $('playHud').hidden = true;
   $('rankPanel').hidden = true;
-  document.body.classList.remove('playing');
+  document.body.classList.remove('playing', 'claw-play');
   me.x = m.spot.x + m.fx * 0.6;
   me.z = m.spot.z + m.fz * 0.6;
   camInit = false;
@@ -1025,6 +1060,15 @@ let camInit = false;
 const camPos = new THREE.Vector3();
 const camLook = new THREE.Vector3();
 const tmpA = new THREE.Vector3();
+const offV = new THREE.Vector3();
+function orbit(cam, look, yaw, pitch) {
+  if (!yaw && !pitch) return;
+  offV.subVectors(cam, look);
+  const r = offV.length();
+  const el = clamp(Math.asin(offV.y / r) + pitch, 0.12, 1.45);
+  const az = Math.atan2(offV.x, offV.z) + yaw;
+  cam.set(look.x + Math.sin(az) * Math.cos(el) * r, look.y + Math.sin(el) * r, look.z + Math.cos(az) * Math.cos(el) * r);
+}
 const tmpB = new THREE.Vector3();
 function updateCamera(dt, now) {
   if (S.mode === 'entry') {
@@ -1052,6 +1096,11 @@ function updateCamera(dt, now) {
   // 오락기 앞: 바라보는 곳을 기준으로 당기거나 밀기 (집게 시점은 화각으로)
   if (S.mode !== 'walk' && S.mode !== 'entry' && !(clawOf(S.mode) && S.view === 'claw')) {
     tmpA.sub(tmpB).multiplyScalar(S.zoomPlay).add(tmpB);
+  }
+  // 끌어서 돌린 시점: 바라보는 곳을 중심으로 빙글
+  if (S.mode !== 'entry' && !(clawOf(S.mode) && S.view === 'claw')) {
+    const walking = S.mode === 'walk';
+    orbit(tmpA, tmpB, walking ? S.yaw : S.playYaw, walking ? S.pitch : S.playPitch);
   }
   const f = !camInit ? 1 : Math.min(1, dt * (clawOf(S.mode) && S.view === 'claw' ? 12 : 5));
   camPos.lerp(tmpA, f);
