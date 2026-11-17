@@ -8,6 +8,7 @@ import { createAvatar, OUTFITS, roundRect } from './avatar.js?v=3';
 import { tenGame, rouletteGame, applyTenLive, applyRouletteLive } from './minigames.js?v=3';
 import { connect, mode as netMode, STALE_MS, makeCode } from './net.js?v=3';
 import { itemInfo, isItem } from './plush.js?v=3';
+import { GAMES2 } from './arcade2.js?v=1';
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -65,6 +66,7 @@ const SCORE = {
   claw2: { asc: false, label: '한 번에 뽑은 인형', fmt: (e) => `🎅 ${e.s}개` },
   ten: { asc: true, label: '10초에 가장 가깝게', fmt: (e) => `${Number(e.v).toFixed(2)}초` },
   roulette: { asc: false, label: '한 번에 받은 티켓', fmt: (e) => `🎟️ ${e.s}` },
+  ...Object.fromEntries(Object.entries(GAMES2).map(([id, g]) => [id, g.score])),
 };
 const boards = {}; // mid → 상위 5명
 
@@ -98,15 +100,25 @@ for (const m of MACHINES.filter((x) => x.claw)) {
   const f = claw.footprint;
   world.colliders.push(rotatedBox(m, { x0: f.x0 * CLAW_SCALE, x1: f.x1 * CLAW_SCALE, z0: f.z0 * CLAW_SCALE, z1: f.z1 * CLAW_SCALE }));
 }
+// 새 오락기들 (농구 · 도끼 연타 · 사격 · 밀어내기 · 타이밍): arcade2.js 가 모델과 게임을 같이 만들어요
+const customs = {};
+for (const m of MACHINES.filter((x) => x.custom)) {
+  const inst = GAMES2[m.id].build();
+  inst.group.position.set(m.x, 0, m.z);
+  inst.group.rotation.y = m.face;
+  scene.add(inst.group);
+  world.colliders.push(rotatedBox(m, inst.footprint));
+  customs[m.id] = inst;
+}
 // 기계 앞 서는 자리까지의 거리
-const FRONT = { changer: 1.0, claw: 1.55, claw2: 1.55, ten: 1.15, roulette: 1.2, basket: 1.9, pinball: 1.6, prize: 1.1 };
+const FRONT = { changer: 1.0, claw: 1.55, claw2: 1.55, ten: 1.15, roulette: 1.2, basket: 1.9, pusher: 1.4, punch: 1.05, shoot: 1.4, timing: 1.25, prize: 1.1 };
 for (const m of MACHINES) {
   const fx = Math.sin(m.face);
   const fz = Math.cos(m.face);
   m.fx = fx;
   m.fz = fz;
   m.spot = { x: m.x + fx * FRONT[m.id], z: m.z + fz * FRONT[m.id] };
-  m.group = m.claw ? claws[m.id].group : world.machineMeshes[m.id].group;
+  m.group = m.claw ? claws[m.id].group : m.custom ? customs[m.id].group : world.machineMeshes[m.id].group;
 }
 // 줄 서는 자리: 기계 앞에서 바깥쪽으로 한 줄
 function queueSlot(m, i) {
@@ -115,7 +127,7 @@ function queueSlot(m, i) {
 }
 
 // 오락기 위 상태 표시판 (AVAILABLE / PLAYING / WAITING / COMING SOON)
-const LABEL_Y = { changer: 2.55, claw: 3.4, claw2: 3.4, ten: 3.1, basket: 3.6, pinball: 2.6, roulette: 3.4, prize: 3.5 };
+const LABEL_Y = { changer: 2.55, claw: 3.4, claw2: 3.4, ten: 3.1, basket: 3.6, pusher: 2.85, punch: 3.3, shoot: 3.0, timing: 2.95, roulette: 3.4, prize: 3.5 };
 const statusBoards = {};
 for (const m of MACHINES) {
   const tex = canvasTex(512, 200, () => {});
@@ -361,7 +373,9 @@ function tapAt(cx, cy) {
   const pts = new Map();
   let pinch = 0;
   let tap = null;
+  const toGame = () => S.mode !== 'walk' && S.mode !== 'entry' && game?.pointer;
   canvas.addEventListener('pointerdown', (e) => {
+    if (toGame()) { game.pointer('down', e.clientX, e.clientY); S.idle = 0; return; }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pts.size === 1) tap = { x: e.clientX, y: e.clientY, t: performance.now() };
     else { tap = null; const [a, b] = [...pts.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); }
@@ -388,6 +402,7 @@ function tapAt(cx, cy) {
     }
   });
   const up = (e) => {
+    if (toGame()) { game.pointer('up', e.clientX, e.clientY); pts.delete(e.pointerId); return; }
     if (tap && pts.size === 1 && performance.now() - tap.t < 500) tapAt(e.clientX, e.clientY);
     pts.delete(e.pointerId);
     if (pts.size < 2) pinch = 0;
@@ -395,6 +410,17 @@ function tapAt(cx, cy) {
   };
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', (e) => { pts.delete(e.pointerId); tap = null; pinch = 0; });
+}
+
+// 사격: 누른 자리에 탕! 표시
+function shotFx(x, y, hit) {
+  const el = document.createElement('i');
+  el.className = `shot-fx${hit ? ' hit' : ''}`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.textContent = hit ? '💥' : '';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 500);
 }
 
 // ------------------------------------------------------------------ 입장 화면
@@ -576,7 +602,7 @@ async function action() {
     renderPlayHud();
     return;
   }
-  if (S.mode === 'ten' || S.mode === 'roulette') { game?.action(); renderPlayHud(); return; }
+  if (game && S.mode !== 'walk') { game.action(); renderPlayHud(); return; }
   const m = nearestMachine() || (S.turn ? MDEF[S.turn.mid] : null);
   if (!m || !m.playable || busyAct) {
     if (!m) wave();
@@ -642,8 +668,11 @@ function startMachine(m) {
     show: (big, sub, color) => { $('playBig').textContent = big; $('playBig').style.color = color || ''; $('playSub').textContent = sub; },
     sendLive: (d) => net.sendLive(m.id, d),
     score: (s, v) => submitScore(m.id, s, v),
+    ray: (cx, cy) => { ndc.set((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); return ray; },
+    flash: (cx, cy, hit) => shotFx(cx, cy, hit),
   };
-  if (m.id === 'ten') game = tenGame(ctx, world.machineMeshes.ten);
+  if (customs[m.id]) game = customs[m.id].start(ctx);
+  else if (m.id === 'ten') game = tenGame(ctx, world.machineMeshes.ten);
   else if (m.id === 'roulette') game = rouletteGame(ctx, world.machineMeshes.roulette);
   else game = null;
   $('playHud').hidden = false;
@@ -1080,6 +1109,12 @@ function updateCamera(dt, now) {
     claw.cameraPose(S.view, tmpA, tmpB);
     claw.group.localToWorld(tmpA);
     claw.group.localToWorld(tmpB);
+  } else if (customs[S.mode]) {
+    const inst = customs[S.mode];
+    tmpA.copy(inst.cam.pos);
+    tmpB.copy(inst.cam.look);
+    inst.group.localToWorld(tmpA);
+    inst.group.localToWorld(tmpB);
   } else if (S.mode === 'ten' || S.mode === 'roulette') {
     const g = MDEF[S.mode].group;
     if (S.mode === 'ten') { tmpA.set(0, 1.85, 2.3); tmpB.set(0, 1.5, 0); }
@@ -1182,6 +1217,7 @@ function loop(now) {
   }
 
   for (const f of world.animated) f(dt, now);
+  for (const inst of Object.values(customs)) inst.idle(dt, now);
 
   // 네트워크: 위치 10회/초, 가만히 있으면 3초마다 살아있다는 표시
   if (net && me) {
@@ -1236,5 +1272,5 @@ addEventListener('pagehide', () => {
   net.leave();
 });
 
-window.__arcade = { S, claw: claws.claw, claws, others, save, prize, get me() { return me; }, get net() { return net; }, get machines() { return machinesState; }, action, exitMachine, scene, camera };
+window.__arcade = { S, claw: claws.claw, claws, customs, MACHINES, get game() { return game; }, others, save, prize, get me() { return me; }, get net() { return net; }, get machines() { return machinesState; }, action, exitMachine, scene, camera };
 window.__arcadeReady = true;

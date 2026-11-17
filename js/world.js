@@ -11,8 +11,11 @@ export const MACHINES = [
   { id: 'claw', name: '인형뽑기', emoji: '🧸', x: -5.6, z: -6.6, face: 0, playable: true, cost: 1, claw: { set: 'round' } },
   { id: 'claw2', name: '산타 인형뽑기', emoji: '🎅', x: -8.35, z: -6.6, face: 0, playable: true, cost: 1, claw: { set: 'doll', title: '산타 인형뽑기', color: 0x2fae6e, colorDark: 0x1d7a4a } },
   { id: 'ten', name: '10초 맞추기', emoji: '⏱️', x: -1.9, z: -6.9, face: 0, playable: true, cost: 1 },
-  { id: 'basket', name: '농구', emoji: '🏀', x: 2.3, z: -6.5, face: 0, playable: false },
-  { id: 'pinball', name: '핀볼', emoji: '🎯', x: 6.4, z: -6.6, face: 0, playable: false },
+  { id: 'basket', name: '농구', emoji: '🏀', x: 2.3, z: -6.5, face: 0, playable: true, custom: true },
+  { id: 'pusher', name: '밀어내기 인형', emoji: '🧸', x: 6.4, z: -6.6, face: 0, playable: true, custom: true },
+  { id: 'punch', name: '도끼 연타', emoji: '🪓', x: 9.1, z: -3.6, face: -Math.PI / 2, playable: true, custom: true },
+  { id: 'shoot', name: '사격', emoji: '🎯', x: 8.9, z: 4.2, face: -Math.PI / 2, playable: true, custom: true },
+  { id: 'timing', name: '타이밍 인형뽑기', emoji: '🕹️', x: -9.2, z: -3.6, face: Math.PI / 2, playable: true, custom: true },
   { id: 'roulette', name: '행운 룰렛', emoji: '🎡', x: -9.0, z: -0.6, face: Math.PI / 2, playable: true, cost: 1 },
   { id: 'changer', name: '동전 교환기', emoji: '🪙', x: -9.25, z: 3.4, face: Math.PI / 2, playable: true, instant: true },
   { id: 'prize', name: '선물 교환소', emoji: '🎁', x: 8.9, z: 0.4, face: -Math.PI / 2, playable: false },
@@ -40,7 +43,7 @@ export function canvasTex(w, h, draw, repeat) {
   return t;
 }
 
-const FONT = '"Black Han Sans", "Pretendard Variable", sans-serif';
+export const FONT = '"Black Han Sans", "Pretendard Variable", sans-serif';
 
 export function buildWorld(scene) {
   const colliders = []; // { x0, x1, z0, z1 } 또는 { cx, cz, r }
@@ -362,7 +365,7 @@ export function buildWorld(scene) {
   // ---------------------------------------------------------------- 오락기 (인형뽑기 빼고)
   const machineMeshes = {};
   for (const m of MACHINES) {
-    if (m.claw) continue;
+    if (m.claw || m.custom) continue;
     const g = new THREE.Group();
     const parts = BUILDERS[m.id]({ mat, boxMesh, g, m });
     g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -398,7 +401,7 @@ function star(g, cx, cy, ro, ri) {
   g.closePath();
 }
 
-function marqueeTex(title, color = '#D9FF44', stroke = '#FF6C91') {
+export function marqueeTex(title, color = '#D9FF44', stroke = '#FF6C91') {
   return canvasTex(512, 128, (g, w, h) => {
     g.fillStyle = '#101310';
     g.fillRect(0, 0, w, h);

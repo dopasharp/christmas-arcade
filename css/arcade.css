@@ -184,3 +184,8 @@ body:not(.is-touch) .toast { bottom: 80px; }
   .hud-logo { font-size: 19px; padding: 7px 9px; }
   .play-top { gap: 8px; padding: 7px 14px; }
 }
+
+/* 사격 탕! */
+.shot-fx { position: fixed; z-index: 25; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; border: 3px solid #fff; pointer-events: none; display: grid; place-items: center; font-style: normal; font-size: 26px; animation: shot .45s ease-out forwards; }
+.shot-fx.hit { border-color: var(--color-brand); }
+@keyframes shot { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }

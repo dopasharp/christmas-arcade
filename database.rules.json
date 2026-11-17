@@ -81,7 +81,7 @@
         "scores": {
           ".read": "auth != null",
           "$mid": {
-            ".validate": "$mid.matches(/^(claw|claw2|ten|roulette)$/)",
+            ".validate": "$mid.matches(/^(claw|claw2|ten|roulette|basket|punch|shoot|pusher|timing)$/)",
             ".indexOn": [
               "s"
             ],
