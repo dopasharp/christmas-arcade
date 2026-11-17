@@ -166,6 +166,9 @@ const S = {
   idle: 0,
   view: 'claw',
   near: null,
+  zoom: 1, // 오락실 걸어다닐 때 카메라 거리 배율
+  zoomPlay: 1, // 오락기 앞에서
+  go: null, // 클릭한 곳으로 걸어가기 { x, z, mid, best, stuck }
 };
 let net = null;
 let me = null; // { avatar, x, z, r, speed }
@@ -186,6 +189,8 @@ addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
   if (key === 'e' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); action(); }
   else if (key === 'q') wave();
+  else if (e.key === '+' || e.key === '=') zoomBy(1 / 1.2);
+  else if (e.key === '-' || e.key === '_') zoomBy(1.2);
   else if (e.key === 'Escape') {
     const open = document.querySelector('#bagOverlay.show, #qrOverlay.show');
     if (open) open.classList.remove('show');
@@ -263,6 +268,97 @@ function randomNick() {
     if (n.length <= 10) return n;
   }
   return `산타${Math.floor(Math.random() * 900 + 100)}`;
+}
+
+// ------------------------------------------------------------------ 클릭/탭으로 걸어가기 + 확대/축소 (휠 · 두 손가락 · ＋/－)
+const ZOOM = { min: 0.5, max: 1.8 };
+function zoomBy(k) {
+  if (S.mode === 'entry') return;
+  if (S.mode === 'walk') S.zoom = clamp(S.zoom * k, ZOOM.min, ZOOM.max);
+  else S.zoomPlay = clamp(S.zoomPlay * k, 0.55, 1.6);
+}
+$('zoomIn').addEventListener('click', () => zoomBy(1 / 1.2));
+$('zoomOut').addEventListener('click', () => zoomBy(1.2));
+canvas.addEventListener('wheel', (e) => { e.preventDefault(); zoomBy(e.deltaY > 0 ? 1.1 : 1 / 1.1); }, { passive: false });
+
+// 바닥 위 목적지 표시
+const goMarker = new THREE.Mesh(new THREE.RingGeometry(0.18, 0.26, 32), new THREE.MeshBasicMaterial({ color: 0xd9ff44, transparent: true, opacity: 0.8, depthWrite: false }));
+goMarker.rotation.x = -Math.PI / 2;
+goMarker.position.y = 0.02;
+goMarker.visible = false;
+scene.add(goMarker);
+
+function cancelGo() {
+  S.go = null;
+  goMarker.visible = false;
+}
+function arrive(g) {
+  cancelGo();
+  if (!g.mid) return;
+  const m = MDEF[g.mid];
+  me.r = Math.atan2(-m.fx, -m.fz);
+  // 기계를 눌러서 왔으면 바로 플레이 (또는 줄 서기)
+  if (m.playable && nearestMachine() === m) action();
+}
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+function tapAt(cx, cy) {
+  if (S.mode !== 'walk' || !me) return;
+  ndc.set((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  // 오락기를 눌렀으면 그 앞자리로
+  let hitM = null;
+  let hitD = Infinity;
+  for (const m of MACHINES) {
+    const h = ray.intersectObject(m.group, true)[0];
+    if (h && h.distance < hitD) { hitD = h.distance; hitM = m; }
+  }
+  const p = new THREE.Vector3();
+  if (!ray.ray.intersectPlane(floorPlane, p)) return;
+  if (hitM && hitM.playable) {
+    S.go = { x: hitM.spot.x, z: hitM.spot.z, mid: hitM.id, best: Infinity, stuck: 0 };
+  } else {
+    if (hitM && !hitM.playable) { toast(`${hitM.emoji} ${hitM.name}은(는) 준비 중이에요`); }
+    const q = { x: p.x, z: p.z };
+    collide(q); // 못 가는 곳이면 가까운 빈 곳으로
+    S.go = { x: q.x, z: q.z, mid: null, best: Infinity, stuck: 0 };
+  }
+  goMarker.position.x = S.go.x;
+  goMarker.position.z = S.go.z;
+  goMarker.visible = true;
+  goMarker.scale.setScalar(1.6);
+}
+{
+  const pts = new Map();
+  let pinch = 0;
+  let tap = null;
+  canvas.addEventListener('pointerdown', (e) => {
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 1) tap = { x: e.clientX, y: e.clientY, t: performance.now() };
+    else { tap = null; const [a, b] = [...pts.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); }
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    const p = pts.get(e.pointerId);
+    if (!p) return;
+    p.x = e.clientX;
+    p.y = e.clientY;
+    if (tap && Math.hypot(p.x - tap.x, p.y - tap.y) > 12) tap = null;
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinch > 0 && d > 0) zoomBy(pinch / d);
+      pinch = d;
+    }
+  });
+  const up = (e) => {
+    if (tap && pts.size === 1 && performance.now() - tap.t < 500) tapAt(e.clientX, e.clientY);
+    pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = 0;
+    tap = null;
+  };
+  canvas.addEventListener('pointerup', up);
+  canvas.addEventListener('pointercancel', (e) => { pts.delete(e.pointerId); tap = null; pinch = 0; });
 }
 
 // ------------------------------------------------------------------ 입장 화면
@@ -490,6 +586,8 @@ function startMachine(m) {
   S.idle = 0;
   S.caught = 0;
   S.view = 'claw';
+  S.zoomPlay = 1;
+  cancelGo();
   me.x = m.spot.x;
   me.z = m.spot.z;
   me.r = Math.atan2(-m.fx, -m.fz);
@@ -759,6 +857,24 @@ function collide(p) {
 function walk(dt) {
   let { x, z } = moveInput();
   let auto = false;
+  // 클릭/탭한 곳으로 자연스럽게 걸어감 (직접 움직이면 취소)
+  if (S.go && (x || z)) cancelGo();
+  if (S.go && !x && !z) {
+    const g = S.go;
+    const dx = g.x - me.x;
+    const dz = g.z - me.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.12) {
+      arrive(g);
+    } else {
+      const sp = Math.min(1, 0.35 + d * 1.2); // 도착할 때 천천히
+      x = (dx / d) * sp;
+      z = (dz / d) * sp;
+      // 벽·기계에 막혀서 0.6초 동안 가까워지지 않으면 멈춤
+      if (d < g.best - 0.03) { g.best = d; g.stuck = 0; }
+      else if ((g.stuck += dt) > 0.6) cancelGo();
+    }
+  }
   // 줄 서 있으면 내 자리로 자동으로 걸어감 (직접 움직이면 그만)
   if (S.queue && !x && !z) {
     const m = MDEF[S.queue];
@@ -895,9 +1011,13 @@ function updateCamera(dt, now) {
   } else {
     // 내 캐릭터를 뒤 위에서 따라감. 세로 화면이면 조금 더 멀리
     const portrait = camera.aspect < 1 ? Math.min(1.7, 1 / camera.aspect) : 1;
-    const dist = 7.2 * (0.75 + portrait * 0.25 + (portrait - 1) * 0.35);
+    const dist = 7.2 * (0.75 + portrait * 0.25 + (portrait - 1) * 0.35) * S.zoom;
     tmpA.set(me.x, 0.6 + dist * 0.95, me.z + dist);
     tmpB.set(me.x, 0.7, me.z - 0.6);
+  }
+  // 오락기 앞: 바라보는 곳을 기준으로 당기거나 밀기 (집게 시점은 화각으로)
+  if (S.mode !== 'walk' && S.mode !== 'entry' && !(clawOf(S.mode) && S.view === 'claw')) {
+    tmpA.sub(tmpB).multiplyScalar(S.zoomPlay).add(tmpB);
   }
   const f = !camInit ? 1 : Math.min(1, dt * (clawOf(S.mode) && S.view === 'claw' ? 12 : 5));
   camPos.lerp(tmpA, f);
@@ -905,8 +1025,8 @@ function updateCamera(dt, now) {
   camInit = true;
   camera.position.copy(camPos);
   camera.lookAt(camLook);
-  const fov = clawOf(S.mode) && S.view === 'claw' ? 70 : 45;
-  if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  const fov = clawOf(S.mode) && S.view === 'claw' ? clamp(70 * S.zoomPlay, 40, 95) : 45;
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 12); camera.updateProjectionMatrix(); }
 }
 
 // ------------------------------------------------------------------ 루프
@@ -996,6 +1116,10 @@ function loop(now) {
     }
   }
 
+  if (goMarker.visible) {
+    goMarker.scale.setScalar(1 + (goMarker.scale.x - 1) * Math.max(0, 1 - dt * 6) + Math.sin(now / 200) * 0.02);
+    goMarker.material.opacity = 0.55 + Math.sin(now / 160) * 0.25;
+  }
   updateCamera(dt, now);
 
   hudT += dt;

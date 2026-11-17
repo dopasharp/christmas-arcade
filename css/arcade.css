@@ -28,6 +28,8 @@ body:not(.is-touch) .touch-only { display: none !important; }
 .hud-bl { bottom: 18px; left: 18px; font-size: 13px; color: var(--color-text-muted); padding: 8px 12px; border-radius: var(--radius-pill); background: rgba(11, 14, 13, .6); }
 .hud-br { bottom: 18px; right: 18px; }
 .hud a, .hud button { pointer-events: auto; }
+.hud-zoom { right: 12px; top: 50%; transform: translateY(-50%); flex-direction: column; }
+.hud-zoom .icon-btn { width: 44px; height: 44px; font-size: 22px; font-weight: 800; line-height: 1; }
 .hud-logo { font: 400 22px/1 "Black Han Sans", var(--font-body); color: var(--color-brand); text-decoration: none; padding: 7px 11px; border-radius: 12px; background: rgba(11, 14, 13, .72); }
 .chip { display: inline-flex; align-items: center; gap: 4px; padding: 8px 12px; border-radius: var(--radius-pill); background: rgba(11, 14, 13, .72); border: 1px solid rgba(255, 255, 255, .08); font-size: 14px; white-space: nowrap; backdrop-filter: blur(6px); }
 .chip b { color: var(--color-brand); }

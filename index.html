@@ -22,11 +22,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dopasharp/tokens.css">
   <link rel="stylesheet" href="dopasharp/components.css">
-  <link rel="stylesheet" href="css/arcade.css?v=4">
+  <link rel="stylesheet" href="css/arcade.css?v=5">
   <script src="dopasharp/dopasharp.js" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"}}</script>
-  <script type="module" src="js/main.js?v=4"></script>
+  <script type="module" src="js/main.js?v=5"></script>
   <script>
     document.addEventListener('submit', function (e) {
       if (window.__arcadeReady) return;
@@ -52,7 +52,11 @@
       <button id="soundBtn" class="icon-btn" aria-label="소리 켜기/끄기">🔊</button>
     </div>
     <div class="hud-bl pc-only walk-only">
-      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동 · <kbd>E</kbd> 플레이 · <kbd>Q</kbd> 인사
+      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 또는 클릭 이동 · <kbd>E</kbd> 플레이 · <kbd>Q</kbd> 인사 · 휠 확대/축소
+    </div>
+    <div class="hud-zoom">
+      <button id="zoomIn" class="icon-btn" aria-label="확대">＋</button>
+      <button id="zoomOut" class="icon-btn" aria-label="축소">－</button>
     </div>
     <div class="hud-br pc-only">
       <button id="qrBtn" class="qr-chip"><span id="padDot" class="dot off"></span><span id="qrBtnText">폰으로 조종</span></button>
