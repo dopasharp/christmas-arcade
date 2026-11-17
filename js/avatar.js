@@ -11,6 +11,26 @@ export const OUTFITS = [
   { key: 'blue', label: '눈사람', body: 0x5aa0ff, hat: 0x2b1d3d, scarf: 0xff8a2a },
   { key: 'gold', label: '루돌프', body: 0xa0663b, hat: 0xe23b4a, scarf: 0xe23b4a, antlers: true },
 ];
+// 모션 (번호 = 네트워크로 보내는 값)
+export const EMOTES = [
+  { key: 'wave', emoji: '👋', label: '인사', dur: 1.6 },
+  { key: 'clap', emoji: '👏', label: '박수', dur: 1.6 },
+  { key: 'jump', emoji: '🦘', label: '점프', dur: 1.1 },
+  { key: 'dance', emoji: '💃', label: '춤', dur: 2.4 },
+  { key: 'heart', emoji: '❤️', label: '하트', dur: 1.8 },
+];
+const emojiTexCache = new Map();
+function emojiTex(e) {
+  if (!emojiTexCache.has(e)) {
+    emojiTexCache.set(e, canvasTex(128, 128, (g, w, h) => {
+      g.font = '96px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(e, w / 2, h / 2 + 6);
+    }));
+  }
+  return emojiTexCache.get(e);
+}
 export const outfitOf = (key) => OUTFITS.find((o) => o.key === key) || OUTFITS[0];
 
 const G = {
@@ -148,7 +168,14 @@ export function createAvatar({ nickname = '', outfit = 'red', me = false }) {
   }
 
   let phase = 0;
-  let wave = 0;
+  let em = null; // { type, t, dur }
+  // 머리 위로 떠오르는 이모지
+  const pop = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false }));
+  pop.scale.set(0.5, 0.5, 1);
+  pop.visible = false;
+  pop.renderOrder = 21;
+  root.add(pop);
+  const ARM = arms.map((a) => a.position.clone());
   const api = {
     root,
     label,
@@ -158,7 +185,14 @@ export function createAvatar({ nickname = '', outfit = 'red', me = false }) {
       label.material.map = fresh.material.map;
       label.scale.copy(fresh.scale);
     },
-    wave() { wave = 1.6; },
+    wave() { api.emote('wave'); },
+    emote(key) {
+      const e = EMOTES.find((x) => x.key === key) || EMOTES[0];
+      em = { type: e.key, t: 0, dur: e.dur };
+      pop.material.map = emojiTex(e.emoji);
+      pop.material.needsUpdate = true;
+      pop.visible = true;
+    },
     setCarry,
     // speed: 0..1 (걷는 정도)
     animate(dt, speed) {
@@ -178,12 +212,49 @@ export function createAvatar({ nickname = '', outfit = 'red', me = false }) {
         h.pivot.rotation.x = -0.25 * walk + Math.sin(phase + h.ph) * 0.35 * walk + Math.sin(phase * 0.3 + h.ph) * 0.06;
         h.pivot.rotation.z = Math.sin(phase * 0.5 + h.ph) * 0.25 * walk;
       }
-      if (wave > 0) {
-        wave = Math.max(0, wave - dt);
-        arms[1].rotation.z = -2.6 + Math.sin(wave * 14) * 0.35;
-        arms[1].rotation.x = 0;
-      } else {
-        arms[1].rotation.z = 0.5;
+      // 기본 자세
+      arms.forEach((a, i) => { a.position.copy(ARM[i]); a.rotation.z = (i ? 1 : -1) * 0.5; a.rotation.y = 0; });
+      rig.rotation.set(0, 0, 0);
+      if (em) {
+        em.t += dt;
+        const t = em.t;
+        const k = Math.min(1, t * 6, (em.dur - t) * 6); // 들어가고 나올 때 부드럽게
+        if (em.type === 'wave') {
+          arms[1].rotation.z = 0.5 + (-2.6 + Math.sin(t * 14) * 0.35 - 0.5) * k;
+          arms[1].rotation.x = 0;
+        } else if (em.type === 'clap') {
+          const open = Math.abs(Math.sin(t * 11));
+          arms.forEach((a, i) => {
+            const s = i ? 1 : -1;
+            a.position.set(s * (0.3 - k * (0.2 - open * 0.08)), 0.52 + k * 0.12, k * 0.2);
+            a.rotation.set(-1.3 * k, 0, s * 0.5 * (1 - k));
+          });
+        } else if (em.type === 'jump') {
+          const h = Math.abs(Math.sin(t * Math.PI * 1.8)) * 0.42 * k;
+          rig.position.y = h;
+          body.scale.set(1 + (0.42 - h) * 0.12 * k, 1 - (0.42 - h) * 0.1 * k, 1);
+          arms.forEach((a, i) => { const s = i ? 1 : -1; a.rotation.z = s * (0.5 - 2.3 * (h / 0.42)); });
+        } else if (em.type === 'dance') {
+          const w = Math.sin(t * 7);
+          rig.rotation.y = w * 0.5 * k;
+          rig.rotation.z = w * 0.14 * k;
+          rig.position.y = Math.abs(Math.sin(t * 7)) * 0.08 * k;
+          arms.forEach((a, i) => { const s = i ? 1 : -1; a.rotation.z = s * (0.5 - 2.4 * Math.max(0, s * w) * k); });
+        } else if (em.type === 'heart') {
+          arms.forEach((a, i) => {
+            const s = i ? 1 : -1;
+            a.position.set(s * (0.3 - 0.06 * k), 0.52 + 0.42 * k, 0.04 * k);
+            a.rotation.set(0, 0, s * (0.5 - 3.0 * k));
+          });
+          rig.rotation.z = Math.sin(t * 5) * 0.06 * k;
+        }
+        // 이모지: 머리 위로 떠오르며 사라짐
+        const p = t / em.dur;
+        pop.position.y = 2.15 + p * 0.45;
+        pop.material.opacity = Math.min(1, (1 - p) * 3);
+        const sc = 0.45 + Math.min(1, t * 8) * 0.1;
+        pop.scale.set(sc, sc, 1);
+        if (t >= em.dur) { em = null; pop.visible = false; }
       }
     },
   };

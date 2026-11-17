@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import * as sfx from './sound.js?v=3';
 import { buildWorld, MACHINES, ROOM, SPAWN, CLAW_SCALE, rotatedBox, canvasTex } from './world.js?v=3';
 import { createClawMachine } from './claw.js?v=3';
-import { createAvatar, OUTFITS, roundRect } from './avatar.js?v=3';
+import { createAvatar, OUTFITS, roundRect, EMOTES } from './avatar.js?v=3';
 import { tenGame, rouletteGame, applyTenLive, applyRouletteLive } from './minigames.js?v=3';
 import { connect, mode as netMode, STALE_MS, makeCode } from './net.js?v=3';
 import { itemInfo, isItem } from './plush.js?v=3';
@@ -207,6 +207,7 @@ addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
   if (key === 'e' || ((e.key === ' ' || e.key === 'Enter') && S.mode !== 'walk')) { e.preventDefault(); action(); }
   else if (key === 'q') wave();
+  else if (/^[1-5]$/.test(e.key) && S.mode === 'walk') emote(EMOTES[+e.key - 1].key);
   else if (e.key === '+' || e.key === '=') zoomBy(1 / 1.2);
   else if (e.key === '-' || e.key === '_') zoomBy(1.2);
   else if (e.key === 'Escape') {
@@ -272,7 +273,12 @@ function moveInput() {
 }
 $('btnA').addEventListener('pointerdown', (e) => { e.preventDefault(); sfx.unlock(); action(); });
 $('prompt').addEventListener('click', () => { sfx.unlock(); action(); });
-$('btnB').addEventListener('pointerdown', (e) => { e.preventDefault(); wave(); });
+$('btnB').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  if (!emoteMenu.hidden) { closeEmoteMenu(); return; }
+  const r = e.currentTarget.getBoundingClientRect();
+  openEmoteMenu(r.left + r.width / 2 - 60, r.top - 10);
+});
 $('exitBtn').addEventListener('click', () => exitMachine());
 $('viewBtn').addEventListener('click', () => toggleView());
 $('soundBtn').addEventListener('click', () => {
@@ -374,11 +380,21 @@ function tapAt(cx, cy) {
   const pts = new Map();
   let pinch = 0;
   let tap = null;
+  let hold = null; // 꾹 누르기 타이머
+  let held = false;
   const toGame = () => S.mode !== 'walk' && S.mode !== 'entry' && game?.pointer;
   canvas.addEventListener('pointerdown', (e) => {
     if (toGame()) { game.pointer('down', e.clientX, e.clientY); S.idle = 0; return; }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pts.size === 1) tap = { x: e.clientX, y: e.clientY, t: performance.now() };
+    if (pts.size === 1) {
+      tap = { x: e.clientX, y: e.clientY, t: performance.now() };
+      held = false;
+      clearTimeout(hold);
+      if (onMe(e.clientX, e.clientY)) {
+        const { clientX: hx, clientY: hy } = e;
+        hold = setTimeout(() => { if (tap) { tap = null; held = true; openEmoteMenu(hx, hy - 30); } }, 450);
+      }
+    }
     else { tap = null; const [a, b] = [...pts.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); }
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -386,8 +402,8 @@ function tapAt(cx, cy) {
     if (!p) return;
     p.x = e.clientX;
     p.y = e.clientY;
-    if (tap && Math.hypot(p.x - tap.x, p.y - tap.y) > 12) tap = null;
-    if (pts.size === 1 && !tap) {
+    if (tap && Math.hypot(p.x - tap.x, p.y - tap.y) > 12) { tap = null; clearTimeout(hold); }
+    if (pts.size === 1 && !tap && !held) {
       // 한 손가락(마우스)으로 끌기 = 시점 돌리기
       const dx = e.movementX || (p.x - (p.lx ?? p.x));
       const dy = e.movementY || (p.y - (p.ly ?? p.y));
@@ -403,6 +419,7 @@ function tapAt(cx, cy) {
     }
   });
   const up = (e) => {
+    clearTimeout(hold);
     if (toGame()) { game.pointer('up', e.clientX, e.clientY); pts.delete(e.pointerId); return; }
     if (tap && pts.size === 1 && performance.now() - tap.t < 500) tapAt(e.clientX, e.clientY);
     pts.delete(e.pointerId);
@@ -520,7 +537,7 @@ function onPlayer(uid, d) {
     scene.add(o.avatar.root);
     others.set(uid, o);
   }
-  if (d.w && d.w !== o.data.w) o.avatar.wave();
+  if (d.w && d.w !== o.data.w) o.avatar.emote(EMOTES[d.w % 10]?.key || 'wave');
   o.avatar.setCarry(d.p ? String(d.p).split(',') : []);
   o.data = d;
   o.seen = performance.now();
@@ -535,7 +552,7 @@ function sendMe(force = false) {
     x: +me.x.toFixed(2), z: +me.z.toFixed(2), r: +me.r.toFixed(2),
     s: S.mode === 'walk' ? (S.queue ? 'queue' : 'walk') : 'play',
     m: S.mode !== 'walk' ? S.mode : S.queue || '',
-    w: S.waveSeq || 0,
+    w: S.emoteSeq ? S.emoteSeq * 10 + (S.emoteIdx || 0) : 0,
     p: save.items.slice(-CARRY_MAX).join(','),
   };
   const key = JSON.stringify(d);
@@ -633,11 +650,44 @@ async function action() {
   }
 }
 
-function wave() {
+function wave() { emote('wave'); }
+function emote(key) {
   if (!me || S.mode !== 'walk') return;
-  me.avatar.wave();
-  S.waveSeq = (S.waveSeq || 0) + 1;
+  const i = Math.max(0, EMOTES.findIndex((e) => e.key === key));
+  me.avatar.emote(EMOTES[i].key);
+  S.emoteSeq = (S.emoteSeq || 0) + 1;
+  S.emoteIdx = i;
+  closeEmoteMenu();
   sendMe(true);
+}
+
+// 내 캐릭터를 꾹 누르면(또는 👋 버튼) 모션 고르기
+const emoteMenu = $('emoteMenu');
+emoteMenu.innerHTML = EMOTES.map((e, i) => `<button type="button" data-e="${e.key}" style="--i:${i}"><span>${e.emoji}</span><small>${e.label}</small></button>`).join('');
+emoteMenu.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-e]');
+  if (b) emote(b.dataset.e);
+});
+function openEmoteMenu(x, y) {
+  if (!me || S.mode !== 'walk') return;
+  const w = 300;
+  emoteMenu.style.left = `${clamp(x, w / 2 + 8, innerWidth - w / 2 - 8)}px`;
+  emoteMenu.style.top = `${clamp(y, 130, innerHeight - 20)}px`;
+  emoteMenu.hidden = false;
+  navigator.vibrate?.(15);
+}
+function closeEmoteMenu() { emoteMenu.hidden = true; }
+addEventListener('pointerdown', (e) => {
+  if (!emoteMenu.hidden && !e.target.closest('#emoteMenu, #btnB')) closeEmoteMenu();
+}, true);
+// 화면 좌표가 내 캐릭터 위인지
+function onMe(cx, cy) {
+  if (!me || S.mode !== 'walk') return false;
+  ndc.set((cx / innerWidth) * 2 - 1, -(cy / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  if (ray.intersectObject(me.avatar.root, true).length) return true;
+  const v = new THREE.Vector3(me.x, 0.9, me.z).project(camera);
+  return Math.hypot((v.x * 0.5 + 0.5) * innerWidth - cx, (-v.y * 0.5 + 0.5) * innerHeight - cy) < 60;
 }
 
 let liveT = 0;
@@ -677,6 +727,7 @@ function startMachine(m) {
   else game = null;
   $('playHud').hidden = false;
   $('btnA').hidden = false;
+  closeEmoteMenu();
   $('playHud').dataset.machine = m.id;
   $('playTitle').textContent = `${m.emoji} ${m.name}`;
   $('viewBtn').hidden = !m.claw;
